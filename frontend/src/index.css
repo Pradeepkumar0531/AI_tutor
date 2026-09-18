@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* StudyAI deep-blue system (light interface, blue brand) */
+    --background: 220 14% 97%; /* #F7F8FA */
+    --foreground: 221 39% 11%; /* #111827 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 221 39% 11%;
+    --primary: 214 71% 25%; /* #123B6D */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 213 72% 21%; /* #0F315A */
+    --primary-soft: 210 67% 95%; /* #EAF2FA */
+    --accent-blue: 210 63% 40%; /* #2563A6 */
+    --secondary: 210 17% 96%; /* #F1F4F7 */
+    --secondary-foreground: 221 39% 11%;
+    --muted: 214 20% 92%; /* #E7EBF0 */
+    --muted-foreground: 221 12% 44%; /* #667085 */
+    --accent: 210 17% 96%;
+    --accent-foreground: 221 39% 11%;
+    --border: 214 20% 89%; /* #DDE3EA */
+    --input: 214 20% 89%;
+    --ring: 214 71% 25%;
+    --destructive: 0 58% 51%; /* #C24141 — genuine errors only */
+    --destructive-foreground: 0 0% 100%;
+    --radius: 0.625rem;
+  }
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.16);
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .font-mono-tech {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Premium card treatment: white surface, subtle deep-blue shadow, and a
+     distinctive rounded left accent bar (no gradients, no pills). */
+  .card-accent {
+    position: relative;
+    box-shadow:
+      0 1px 2px hsl(var(--primary) / 0.05),
+      0 6px 20px -8px hsl(var(--primary) / 0.12);
+  }
+  .card-accent::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: hsl(var(--primary));
+    pointer-events: none;
+  }
+
+  /* StudyAI skeleton surfaces: quiet gray/blue pulse + optional soft sheen.
+     All animation is CSS-only (no JS timers) and disabled entirely under
+     prefers-reduced-motion. */
+  .skel {
+    @apply rounded-md bg-muted;
+    animation: skel-pulse 1.6s ease-in-out infinite;
+  }
+  .skel-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .skel-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: hsl(var(--primary-soft));
+    opacity: 0;
+    animation: skel-sheen 2.2s ease-in-out infinite;
+  }
+  @keyframes skel-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes skel-sheen {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  /* Indeterminate progress: honest "working, no percentage" indicator. */
+  @keyframes skel-indeterminate {
+    0% {
+      transform: translateX(-110%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+  .skel-indeterminate-bar {
+    animation: skel-indeterminate 1.4s ease-in-out infinite;
+  }
+  /* Typing dots for the Tutor thinking state (CSS-only). */
+  @keyframes skel-dot {
+    0%,
+    60%,
+    100% {
+      opacity: 0.25;
+      transform: translateY(0);
+    }
+    30% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+  .skel-dot {
+    animation: skel-dot 1.2s ease-in-out infinite;
+  }
+  .skel-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .skel-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel,
+  .skel-shimmer::after,
+  .skel-indeterminate-bar,
+  .skel-dot {
+    animation: none !important;
+  }
+  .skel-shimmer::after {
+    display: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
