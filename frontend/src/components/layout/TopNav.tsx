@@ -1,4 +1,4 @@
-import { ChevronDown, GraduationCap, LogOut, Menu, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import * as React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 
@@ -50,7 +50,7 @@ export function TopNav() {
     );
 
   return (
-    <header className="shrink-0 bg-primary text-primary-foreground shadow-[0_1px_12px_rgba(15,49,90,0.35)]">
+    <header className="shrink-0 bg-[linear-gradient(180deg,hsl(var(--primary-hover)),hsl(var(--primary)))] text-primary-foreground shadow-[0_1px_12px_rgba(15,49,90,0.35)]">
       <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
         {/* Mobile menu button (left) */}
         <div className="absolute inset-y-0 left-4 flex items-center sm:left-6 md:hidden">
@@ -120,18 +120,10 @@ export function TopNav() {
 
         {/* Centered brand */}
         <div className="flex flex-col items-center px-14 pb-1 pt-5 text-center md:px-40">
-          <span className="flex items-center gap-2.5">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15"
-              aria-hidden="true"
-            >
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <span className="text-xl font-semibold tracking-tight sm:text-2xl">
-              AI Learning Companion
-            </span>
+          <span className="text-3xl font-bold tracking-tight sm:text-4xl">
+            AI Learning Companion
           </span>
-          <span className="font-mono-tech mt-1.5 text-[11px] uppercase tracking-[0.18em] text-primary-foreground/70">
+          <span className="font-mono-tech mt-1 text-[10px] uppercase tracking-[0.18em] text-primary-foreground/70">
             Learn&nbsp;&nbsp;→&nbsp;&nbsp;Practice&nbsp;&nbsp;→&nbsp;&nbsp;Master
           </span>
         </div>

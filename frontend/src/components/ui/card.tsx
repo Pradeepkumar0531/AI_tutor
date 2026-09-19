@@ -2,15 +2,21 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn("card-accent rounded-[10px] border bg-card text-card-foreground", className)}
-      {...props}
-    />
-  ),
-);
+export const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { accent?: boolean }
+>(({ className, accent = false, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-[10px] border bg-card text-card-foreground",
+      "shadow-[0_1px_2px_hsl(var(--primary)/0.05),0_6px_20px_-8px_hsl(var(--primary)/0.12)]",
+      accent && "card-accent",
+      className,
+    )}
+    {...props}
+  />
+));
 Card.displayName = "Card";
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

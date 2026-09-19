@@ -34,13 +34,14 @@ export function LoginPage() {
   }
 
   return (
-    <Card>
+    <Card accent className="card-hero">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <LogIn className="h-5 w-5 text-primary" aria-hidden="true" />
-          Welcome back
+        <CardTitle className="flex flex-col items-center gap-1.5 text-center">
+          <span className="text-2xl font-bold tracking-tight">AI Learning Companion</span>
+          <span className="text-sm font-medium text-muted-foreground">
+            Welcome back — sign in to continue learning.
+          </span>
         </CardTitle>
-        <p className="text-sm text-muted-foreground">Sign in to continue learning.</p>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate={false}>

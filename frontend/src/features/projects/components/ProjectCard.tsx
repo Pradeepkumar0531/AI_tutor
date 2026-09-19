@@ -21,7 +21,7 @@ export function ProjectCard({
       className="group block rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Open project ${project.name}`}
     >
-      <Card className="h-full transition-colors group-hover:border-primary/40">
+      <Card accent className="card-lift h-full group-hover:border-primary/40">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px] line-clamp-1">

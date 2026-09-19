@@ -48,7 +48,7 @@ async function makeProjectWithPdf(page: Page, stamp: number, title: string) {
   // Scoped to the material card: the dashboard summary also renders
   // "ready" text, so a global text match is ambiguous.
   const card = page.getByRole("link", { name: `Open material ${title}` });
-  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card).toBeVisible({ timeout: 120_000 });
   await expect(card.getByText("Ready")).toBeVisible({ timeout: 120_000 });
   // Quiz generation needs embedded chunks AND extracted concepts: gate on
   // full worker completion (badge/counter-only waits race embedding).

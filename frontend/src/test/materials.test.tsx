@@ -40,6 +40,7 @@ const mockUpload = materialsApi.upload as Mock;
 const mockGet = materialsApi.get as Mock;
 const mockChunks = materialsApi.chunks as Mock;
 const mockReprocess = materialsApi.reprocess as Mock;
+const mockArchive = materialsApi.archive as Mock;
 const mockProjectsGet = projectsApi.get as Mock;
 
 function mat(over: Partial<Material> = {}): Material {
@@ -111,6 +112,29 @@ describe("materials store", () => {
     );
     await waitFor(() => expect(screen.getByText("Could not load materials")).toBeInTheDocument());
     fireEvent.click(screen.getByText("Try again"));
+    await waitFor(() => expect(screen.getByText("No materials yet.")).toBeInTheDocument());
+  });
+
+  it("deletes a material after confirmation", async () => {
+    mockList.mockResolvedValue({
+      items: [mat({ status: "READY" })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    });
+    mockArchive.mockResolvedValue(mat({ status: "READY" }));
+    render(
+      <MemoryRouter>
+        <MaterialsSection projectId="proj-1" />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Open material Notes.pdf" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete material Notes.pdf" }));
+    await waitFor(() => expect(screen.getByText("Delete “Notes.pdf”?")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mockArchive).toHaveBeenCalledWith("proj-1", "mat-1"));
     await waitFor(() => expect(screen.getByText("No materials yet.")).toBeInTheDocument());
   });
 

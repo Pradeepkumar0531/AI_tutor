@@ -1,7 +1,12 @@
+import * as React from "react";
 import { Link } from "react-router-dom";
-import { Clock, FileText, TriangleAlert } from "lucide-react";
+import { Clock, FileText, Trash2, TriangleAlert } from "lucide-react";
 
+import { toApiError } from "@/api/client";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
+import { useMaterialsStore } from "@/stores/useMaterialsStore";
 import { MaterialStatusBadge } from "./MaterialStatusBadge";
 import type { Material } from "@/types";
 
@@ -15,26 +20,58 @@ function formatBytes(size: number | null): string {
 export function MaterialCard({ material }: { material: Material }) {
   const failed = material.status === "FAILED";
   const processing = material.status === "QUEUED" || material.status === "PROCESSING";
+  const archive = useMaterialsStore((s) => s.archive);
+  const { push } = useToast();
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
   const bar = failed ? "bg-destructive" : "bg-primary";
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await archive(material.projectId, material.id);
+      push(`Deleted “${material.name}”.`);
+    } catch (e) {
+      push(`Could not delete material: ${toApiError(e).message}`);
+    } finally {
+      setDeleting(false);
+      setConfirmOpen(false);
+    }
+  }
+
   return (
-    <Link
-      to={`/projects/${material.projectId}/materials/${material.id}`}
-      className="group block rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label={`Open material ${material.name}`}
-    >
-      <Card
-        className={`h-full transition-colors group-hover:border-primary/40 ${failed ? "border-destructive/30" : ""}`}
-      >
+    <>
+      <Card accent className={`card-lift h-full ${failed ? "border-destructive/30" : ""}`}>
         <div className={`h-1 w-full rounded-t-[10px] ${bar}`} aria-hidden="true" />
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
-            <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px] line-clamp-1">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-primary">
-                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <Link
+              to={`/projects/${material.projectId}/materials/${material.id}`}
+              className="group min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Open material ${material.name}`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <CardTitle className="flex min-w-0 flex-1 items-center gap-2.5 text-[15px] line-clamp-1 transition-colors group-hover:text-primary">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-primary">
+                    <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  </span>
+                  <span className="truncate">{material.name}</span>
+                </CardTitle>
+                <MaterialStatusBadge status={material.status} />
               </span>
-              <span className="truncate">{material.name}</span>
-            </CardTitle>
-            <MaterialStatusBadge status={material.status} />
+            </Link>
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                aria-label={`Delete material ${material.name}`}
+                title={`Delete material ${material.name}`}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </span>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -71,6 +108,15 @@ export function MaterialCard({ material }: { material: Material }) {
           </p>
         </CardContent>
       </Card>
-    </Link>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Delete “${material.name}”?`}
+        description="The material will be removed from this project. The stored file and extracted content are kept, so it can be restored."
+        confirmLabel="Delete"
+        pending={deleting}
+        onConfirm={() => void handleDelete()}
+      />
+    </>
   );
 }

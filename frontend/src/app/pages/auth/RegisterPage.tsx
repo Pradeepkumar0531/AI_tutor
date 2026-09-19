@@ -35,13 +35,14 @@ export function RegisterPage() {
   }
 
   return (
-    <Card>
+    <Card accent className="card-hero">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <UserPlus className="h-5 w-5 text-primary" aria-hidden="true" />
-          Create your account
+        <CardTitle className="flex flex-col items-center gap-1.5 text-center">
+          <span className="text-2xl font-bold tracking-tight">AI Learning Companion</span>
+          <span className="text-sm font-medium text-muted-foreground">
+            Create your account — start learning in seconds.
+          </span>
         </CardTitle>
-        <p className="text-sm text-muted-foreground">Start learning in seconds.</p>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
