@@ -7,6 +7,16 @@ Topology (modular monolith, no new infra):
 - Worker → same image + `celery -A app.jobs.worker.celery worker`; Flower optional (`--port=5555`).
 - Database → Neon (`DATABASE_URL`); run `alembic upgrade head`. Queue → Upstash Redis.
 
+Deployment configs in the repo (no secrets inside):
+
+- `frontend/vercel.json` — build/output plus the SPA rewrite (`/(.*)` →
+  `/index.html`) that client-side routing requires; without it deep links 404.
+  In the Vercel dashboard set `VITE_API_BASE_URL` to the API origin.
+- `render.yaml` — Render blueprint for `alc-api` (web + `alembic upgrade head`
+  pre-deploy + `/api/v1/health` check) and `alc-worker` (same image, Celery);
+  all secret values are `sync: false` dashboard entries. Frontend stays on
+  Vercel per the topology above.
+
 ## Start commands (verified, not invented)
 
 | Component | Command | CWD |
@@ -60,6 +70,15 @@ Topology (modular monolith, no new infra):
   for rollback but enum values are intentionally never removed.
 - Live-Neon upgrade executed 2026-09-18 (head `0011_qattempt_created_at`,
   single head); SQLite upgrade/downgrade paths are executed in validation.
+
+## Development-only infrastructure (never deployed)
+
+- The venv-local DNS fallback (`dev_dns_fallback.py` + `dev-dns-fallback.pth`
+  inside `backend/.venv/`) exists only because one development machine's LAN
+  DNS refuses `neon.tech`. It is gitignored (`.venv/`), is NOT part of the
+  application, and MUST NOT be packaged or shipped: production hosts resolve
+  Neon via normal DNS. If a deploy target shows `failed to resolve host` for
+  Neon, fix that host's resolver — do not copy this workaround.
 
 ## Worker reliability notes
 
