@@ -58,31 +58,38 @@ export function TopNav() {
     );
 
   return (
-    <header className="shrink-0">
-      {/* 1 — Hero: product identity. Caption first, deliberate gap, then the
-        dominant title. Outfit throughout (inherited from body). */}
-      <div className="bg-[linear-gradient(180deg,hsl(var(--primary-hover)),hsl(var(--primary)))] text-primary-foreground">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-6 pt-6 text-center sm:px-6">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[0.22em] text-primary-foreground/60">
-            Learn&nbsp;&nbsp;→&nbsp;&nbsp;Practice&nbsp;&nbsp;→&nbsp;&nbsp;Master
-          </span>
-          <span className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
-            AI Learning Companion
-          </span>
+    // Fragment (not one header): the sticky nav must be a direct child of
+    // the app column — a sticky element can never escape its parent, so
+    // wrapping hero + nav in a single header would let the nav scroll away.
+    <>
+      <header className="shrink-0">
+        {/* 1 — Hero: product identity on a single unified dark gradient.
+        Caption first, deliberate gap, then the dominant title. Outfit
+        throughout (inherited from body). */}
+        <div className="hero-dark text-primary-foreground">
+          <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 py-6 text-center sm:px-6">
+            <span className="font-mono-tech text-[10px] uppercase tracking-[0.22em] text-primary-foreground/60">
+              Learn&nbsp;&nbsp;→&nbsp;&nbsp;Practice&nbsp;&nbsp;→&nbsp;&nbsp;Master
+            </span>
+            <span className="mt-3 block text-4xl font-bold tracking-tight sm:text-5xl">
+              AI Learning Companion
+            </span>
+          </div>
         </div>
-      </div>
+      </header>
 
-      {/* 2 — Navigation bar: its own light region below the hero. */}
-      <div className="border-b bg-card/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-          {/* Mobile menu button */}
-          <div className="flex items-center md:hidden">
+      {/* 2 — Navigation bar: its own light region below the hero. Sticky so
+        Home/Spaces/Analytics stay reachable while the page scrolls. */}
+      <div className="sticky top-0 z-40 border-b bg-card/95 shadow-[0_1px_8px_rgba(15,49,90,0.08)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4 sm:px-6">
+          {/* Left: mobile menu button, balanced against the account side */}
+          <div className="flex flex-1 items-center justify-start">
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={menuOpen ? "Close navigation" : "Open navigation"}
               aria-expanded={menuOpen}
-              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
             >
               {menuOpen ? (
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -92,7 +99,7 @@ export function TopNav() {
             </button>
           </div>
 
-          {/* Desktop nav row */}
+          {/* Center: desktop nav links */}
           <nav className="hidden items-center gap-1 py-2 md:flex" aria-label="Primary">
             {links.map((l) => (
               <NavLink key={l.to} to={l.to} end={l.end} className={linkClass}>
@@ -101,10 +108,10 @@ export function TopNav() {
             ))}
           </nav>
           {/* Mobile spacer keeps the account pinned right */}
-          <span className="md:hidden" aria-hidden="true" />
+          <span className="flex-1 md:hidden" aria-hidden="true" />
 
           {/* Account (real auth state) */}
-          <div className="flex items-center py-1.5">
+          <div className="flex flex-1 items-center justify-end py-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -173,6 +180,6 @@ export function TopNav() {
           </nav>
         ) : null}
       </div>
-    </header>
+    </>
   );
 }

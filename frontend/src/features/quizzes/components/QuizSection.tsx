@@ -1,4 +1,4 @@
-import { ClipboardList, History, List, Play, Sparkles, X } from "lucide-react";
+import { ClipboardList, History, List, Loader2, Play, Sparkles, X } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -92,7 +92,11 @@ function CreateQuizForm({ projectId }: { projectId: string }) {
       </div>
       <div className="col-span-2 flex items-end sm:col-span-3 lg:col-span-1">
         <Button type="submit" disabled={working} className="w-full">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
+          {working ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          )}
           {working ? "Generating…" : "Generate quiz"}
         </Button>
       </div>
@@ -111,6 +115,7 @@ export function QuizSection({ projectId }: { projectId: string }) {
   const fetchQuizzes = useAssessmentStore((s) => s.fetchQuizzes);
   const clearError = useAssessmentStore((s) => s.clearError);
   const busyFailed = useAssessmentStore((s) => s.busyState === "error");
+  const busyWorking = useAssessmentStore((s) => s.busyState === "working");
   const selectQuiz = useAssessmentStore((s) => s.selectQuiz);
   const startAttempt = useAssessmentStore((s) => s.startAttempt);
   const openAssessment = useAssessmentStore((s) => s.openAssessment);
@@ -277,10 +282,15 @@ export function QuizSection({ projectId }: { projectId: string }) {
                 <Button
                   type="button"
                   className="mt-3"
+                  disabled={busyWorking}
                   onClick={() => void startAttempt(projectId, activeQuiz.quiz.id)}
                 >
-                  <Play className="h-4 w-4" aria-hidden="true" />
-                  Start attempt
+                  {busyWorking ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Play className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {busyWorking ? "Starting…" : "Start attempt"}
                 </Button>
               </div>
             ) : null}

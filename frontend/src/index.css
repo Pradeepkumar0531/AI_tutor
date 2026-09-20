@@ -85,6 +85,23 @@
   .card-hero {
     background: linear-gradient(135deg, #ffffff 0%, hsl(var(--primary-soft)) 100%);
   }
+  /* Main hero: deep navy gradient with a soft top-center highlight. Darker
+    and richer than the plain primary wash, so the brand panel reads as its
+    own unit on top of it. Shared by the app header and the auth header. */
+  .hero-dark {
+    background:
+      radial-gradient(
+        ellipse 70% 90% at 50% 0%,
+        hsl(216 60% 30% / 0.55) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        135deg,
+        hsl(213 73% 14%) 0%,
+        hsl(213 72% 21%) 55%,
+        hsl(214 71% 25%) 100%
+      );
+  }
   /* Dark restrained surfaces: deep navy → muted blue. Light text only —
      supporting copy uses primary-foreground at reduced opacity, borders stay
      visible via white/12. Apply to hero/header/summary surfaces; keep dense
@@ -200,6 +217,12 @@
   .skel-shimmer::after,
   .skel-indeterminate-bar,
   .skel-dot {
+    animation: none !important;
+  }
+  /* Loading spinners/pulses elsewhere (Tailwind animate-spin/pulse) also
+     go still — one global guard instead of per-component opt-outs. */
+  .animate-spin,
+  .animate-pulse {
     animation: none !important;
   }
   .skel-shimmer::after {

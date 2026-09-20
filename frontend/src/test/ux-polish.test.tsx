@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { assessmentApi } from "@/api/assessment";
@@ -45,6 +45,8 @@ import { spacesApi } from "@/api/spaces";
 const mockQuizzes = assessmentApi.quizzes as Mock;
 const mockSummaries = assessmentApi.assessments as Mock;
 const mockQuizDetail = assessmentApi.quiz as Mock;
+const mockCreateQuiz = assessmentApi.createQuiz as Mock;
+const mockStartAttempt = assessmentApi.startAttempt as Mock;
 
 function reset() {
   useAssessmentStore.getState().reset();
@@ -188,10 +190,17 @@ describe("top navigation", () => {
     const header = screen.getByText("AI Learning Companion").closest("header");
     expect(header).not.toBeNull();
     const nav = screen.getByRole("navigation", { name: "Primary" });
-    const hero = header!.children.item(0)!;
-    const bar = header!.children.item(1)!;
-    expect(hero.contains(nav)).toBe(false);
-    expect(bar.contains(nav)).toBe(true);
+    expect(header!.contains(nav)).toBe(false);
+  });
+
+  it("pins the navigation bar to the viewport top on scroll", () => {
+    renderNav("/");
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    // Sticky must be a direct child of the app column: a sticky element can
+    // never escape its parent, so the bar cannot live inside the header.
+    const bar = nav.closest("div.sticky");
+    expect(bar).not.toBeNull();
+    expect(bar!.classList.contains("top-0")).toBe(true);
   });
 
   it("orders the caption above the title with a deliberate gap", () => {
@@ -215,5 +224,68 @@ describe("card system", () => {
     const plain = screen.getByText("plain").className;
     expect(plain).not.toContain("card-dark");
     expect(plain).not.toContain("card-hero");
+  });
+});
+
+describe("loading animations", () => {
+  beforeEach(reset);
+
+  it("spins the Generate button while a quiz is being created", async () => {
+    mockQuizzes.mockResolvedValue([]);
+    mockSummaries.mockResolvedValue([]);
+    let rejectCreate!: (e: unknown) => void;
+    mockCreateQuiz.mockImplementation(() => new Promise((_, rej) => (rejectCreate = rej)));
+    render(
+      <MemoryRouter>
+        <QuizSection projectId="proj-1" />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /generate quiz/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /generate quiz/i }));
+    await waitFor(() => expect(screen.getByText("Generating…")).toBeInTheDocument());
+    // Animated spinner next to the label (not static text alone).
+    expect(
+      screen
+        .getByRole("button", { name: /generating/i })
+        .querySelector(".animate-spin"),
+    ).not.toBeNull();
+    rejectCreate!(new Error("stop"));
+    await waitFor(() =>
+      expect(screen.getByText("Quiz generation failed")).toBeInTheDocument(),
+    );
+  });
+
+  it("spins the Start attempt button while an attempt is starting", async () => {
+    const quiz = {
+      id: "quiz-1",
+      projectId: "proj-1",
+      title: "Energy — Practice Quiz",
+      status: "READY" as const,
+      difficulty: null,
+      questionCount: 1,
+      createdAt: "",
+    };
+    mockQuizzes.mockResolvedValue([quiz]);
+    mockSummaries.mockResolvedValue([]);
+    mockQuizDetail.mockResolvedValue({ quiz, questions: [] });
+    let rejectStart!: (e: unknown) => void;
+    mockStartAttempt.mockImplementation(() => new Promise((_, rej) => (rejectStart = rej)));
+    render(
+      <MemoryRouter>
+        <QuizSection projectId="proj-1" />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByText("Energy — Practice Quiz"));
+    fireEvent.click(await screen.findByRole("button", { name: /start attempt/i }));
+    await waitFor(() => expect(screen.getByText("Starting…")).toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: /starting/i }).querySelector(".animate-spin"),
+    ).not.toBeNull();
+    rejectStart!(new Error("stop"));
+    await waitFor(() =>
+      expect(screen.getByText("Quiz generation failed")).toBeInTheDocument(),
+    );
   });
 });

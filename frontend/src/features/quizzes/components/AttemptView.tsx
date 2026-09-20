@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CheckCircle2, Flag, Tag, XCircle } from "lucide-react";
+import { CheckCircle2, Flag, Loader2, Tag, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -209,7 +209,11 @@ export function AttemptView({ projectId }: { projectId: string }) {
           disabled={busy || attempt.status !== "IN_PROGRESS"}
           onClick={() => void submitQuiz()}
         >
-          <Flag className="h-4 w-4" aria-hidden="true" />
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Flag className="h-4 w-4" aria-hidden="true" />
+          )}
           {submitting && submitProgress ? submitProgress : busy ? "Working…" : "Submit Quiz"}
         </Button>
         <p className="text-xs text-muted-foreground">
