@@ -16,6 +16,37 @@ Deployment configs in the repo (no secrets inside):
   pre-deploy + `/api/v1/health` check) and `alc-worker` (same image, Celery);
   all secret values are `sync: false` dashboard entries. Frontend stays on
   Vercel per the topology above.
+- `Dockerfile` (+ `scripts/start-single.sh`, `backend/requirements.txt`) —
+  single-container image (API + Celery solo worker, migrations on boot) for
+  hosts that run one container: Hugging Face Spaces (Docker SDK, CPU Basic
+  free) or any Docker host. `scripts/push-space.sh` pushes a clean deploy
+  mirror to a Space. Secrets are Space secrets, never in the repo.
+
+## Hugging Face Spaces (free backend)
+
+Prerequisites: HF account, Space created as **Docker SDK** on **CPU Basic**
+(free: 2 vCPU / 16 GB), write-role access token (avatar → Settings →
+Access Tokens → New token, role `write`).
+
+1. Commit everything (`scripts/push-space.sh` refuses a dirty tree — what is
+   committed is what deploys).
+2. Space → Settings → **Variables and secrets**, add (secret unless noted):
+   `DATABASE_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`,
+   `JWT_SECRET_KEY` (random ≥32 chars, e.g. `openssl rand -hex 32`),
+   `CORS_ORIGINS` (`https://<user>-<space>.hf.space,https://<vercel-app>.vercel.app`),
+   `ADMIN_EMAILS`, `GROQ_API_KEY`, `GOOGLE_API_KEY`, `STORAGE_BACKEND=neon`
+   (variable) + `NEON_STORAGE_*`. Startup refuses dev defaults — missing or
+   placeholder values fail fast with a clear error, by design.
+3. Deploy: `HF_TOKEN=hf_xxx ./scripts/push-space.sh <hf-username> <space-name>`
+   (repeat after each commit to redeploy). Watch the build log on the Space page.
+4. Verify: `GET https://<user>-<space>.hf.space/api/v1/health` →
+   `{"status":"ok",...}`. Migrations run automatically at container boot.
+5. Point the frontend at it: Vercel → `VITE_API_BASE_URL` = the Space origin,
+   redeploy frontend. Then register, upload the fixture PDF, wait for READY,
+   generate a quiz — the full loop proves API + worker + queue.
+6. Limits: free Spaces **sleep when idle** (wake on visit; queued uploads
+   process after wake-up — Redis redelivers unacked jobs, nothing is lost).
+   Demo-grade, not always-on production.
 
 ## Start commands (verified, not invented)
 

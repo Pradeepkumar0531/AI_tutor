@@ -1,0 +1,14 @@
+# Keep the Docker build context small: only backend/ + scripts/ are COPYed.
+.git/
+.github/
+frontend/
+docs/
+scripts/smoke_test.py
+scripts/seed.py
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.venv/
+backend/tests/
+backend/.venv/
+*.log
