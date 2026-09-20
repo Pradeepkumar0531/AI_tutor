@@ -25,6 +25,8 @@ from app.schemas.admin import (
     AdminHealthRead,
     AdminJobRead,
     AdminOverviewRead,
+    AdminRagDiagnoseRead,
+    AdminRagResultRead,
     AdminRecommendationRead,
     AdminSpaceRead,
     AdminUserJourneyRead,
@@ -292,4 +294,48 @@ def evaluations(
         total,
         limit,
         offset,
+    )
+
+
+@router.get("/rag/diagnose", response_model=AdminRagDiagnoseRead)
+async def rag_diagnose(
+    admin: Admin,
+    session: SessionD,
+    project_id: Annotated[uuid.UUID, Query()],
+    query: Annotated[str, Query(min_length=1, max_length=1000)],
+    top_k: Annotated[int, Query(ge=1, le=20)] = 10,
+):
+    """Admin-only RAG diagnostic: run retrieval for a query against any
+    project and return scores + provenance previews. Embeddings are never
+    exposed; only the configured model name and dimension are reported."""
+    from app.ai.service import ai_service
+    from app.core.config import get_settings
+    from app.rag.retrieval import RetrievalService
+
+    settings = get_settings()
+    service = RetrievalService(session, ai_service.embedding_service(settings), settings)
+    result = await service.diagnose_for_admin(project_id=project_id, query=query, top_k=top_k)
+    return AdminRagDiagnoseRead(
+        query=result.query,
+        project_id=project_id,
+        embedding_model=settings.google_embedding_model,
+        embedding_dimension=settings.embedding_dimensions,
+        top_k=top_k,
+        threshold=settings.rag_similarity_threshold,
+        retrieval_count=len(result.results),
+        best_similarity=result.best_similarity,
+        insufficient_evidence=result.insufficient_evidence,
+        results=[
+            AdminRagResultRead(
+                chunk_id=r.chunk_id,
+                document_id=r.document_id,
+                material_id=r.material_id,
+                material_name=r.material_name,
+                page_start=r.page_start,
+                page_end=r.page_end,
+                similarity=r.similarity,
+                text_preview=r.text[:300],
+            )
+            for r in result.results
+        ],
     )

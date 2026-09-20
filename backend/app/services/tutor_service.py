@@ -119,6 +119,18 @@ def format_chunks_for_tutor(chunks: list) -> str:
     return format_chunks_for_prompt(chunks)
 
 
+def _strip_rag_delimiters(text: str, *, begin: str, end: str) -> str:
+    """Return the inner blocks of a ``build_rag_context`` payload without its
+    outer trust-boundary wrapper. Falls back to the raw text when delimiters
+    are absent (never drops evidence)."""
+    inner = text.strip()
+    if begin in inner:
+        inner = inner.split(begin, 1)[1]
+    if end in inner:
+        inner = inner.rsplit(end, 1)[0]
+    return inner.strip()
+
+
 @dataclass
 class LearningContext:
     project_name: str
@@ -410,18 +422,32 @@ class TutorService(BaseService):
             context=context,
             question=user_message.content,
         )
-        grounded = (
-            kind == QuestionKind.PROJECT_GROUNDED
-            and not context.insufficient
-            and bool(context.citation_dicts)
-        )
+        if kind == QuestionKind.PROJECT_GROUNDED:
+            # App-authoritative: retrieved evidence means grounded citations
+            # even when the model is humble (see
+            # test_app_overrides_model_grounded_claim).
+            grounded = not context.insufficient and bool(context.citation_dicts)
+            citations = context.citation_dicts
+        elif kind == QuestionKind.GENERAL_LEARNING:
+            # Opportunistic grounding: the model judges whether the retrieved
+            # evidence actually answers the question. Weak retrieval routinely
+            # clears the similarity threshold on short slide chunks, so
+            # app-authoritative citations here would attach noise to general
+            # answers — cite only evidence the model reports using.
+            grounded = (
+                bool(output.grounded) and not context.insufficient and bool(context.citation_dicts)
+            )
+            citations = context.citation_dicts if grounded else []
+        else:
+            grounded = False
+            citations = []
         return self._persist_assistant(
             user_id=user_id,
             project=project,
             conversation=conversation,
             user_message=user_message,
             answer=output.answer,
-            citations=context.citation_dicts,
+            citations=citations,
             grounded=grounded,
             insufficient_evidence=False,
             kind=kind,
@@ -430,7 +456,7 @@ class TutorService(BaseService):
             input_tokens=output.input_tokens,
             output_tokens=output.output_tokens,
             latency_ms=output.latency_ms,
-            retrieval_count=len(context.citation_dicts),
+            retrieval_count=len(citations),
             needs_clarification=output.needs_clarification,
         )
 
@@ -485,7 +511,15 @@ class TutorService(BaseService):
         insufficient = False
         top_similarity: float | None = None
         retrieval_latency_ms = 0
-        if kind == QuestionKind.PROJECT_GROUNDED:
+        # Retrieval runs for every substantive question, not just ones that
+        # mention materials explicitly: most factual questions ("how many
+        # types of X are there?") carry no lexical material reference, and
+        # skipping retrieval for them guarantees a refusal despite indexed
+        # evidence. PROJECT_GROUNDED *requires* evidence (insufficient →
+        # refusal upstream); GENERAL_LEARNING grounds opportunistically and
+        # otherwise answers generally. CLARIFICATION reuses conversation
+        # history (a bare "why?" retrieves noise); UNSUPPORTED never arrives.
+        if kind in (QuestionKind.PROJECT_GROUNDED, QuestionKind.GENERAL_LEARNING):
             embedding_service = self._ai().embedding_service(settings)
             retrieval = RetrievalService(self.session, embedding_service, settings)
             started = time.perf_counter()
@@ -501,10 +535,20 @@ class TutorService(BaseService):
             insufficient = result.insufficient_evidence
             top_similarity = result.best_similarity
             if not insufficient:
-                # Rebuild the evidence from raw chunks: result.context.text
-                # already carries RAG trust-boundary delimiters, and
-                # build_tutor_prompt adds the single tutor-level wrapper.
-                evidence_text = format_chunks_for_tutor(result.results)
+                # Use the bounded context built by RetrievalService verbatim
+                # (deduped, strongest-first, within max_chunks/max_chars):
+                # result.results is the full threshold-filtered candidate
+                # list, while result.citations is the budgeted subset —
+                # formatting results directly would bypass the budget and
+                # could show the model more chunks than we cite (or drop the
+                # truncation of a single oversized chunk). Strip the outer
+                # RAG delimiters here; build_tutor_prompt adds the single
+                # tutor-level wrapper around this evidence.
+                from app.ai.prompts import SOURCE_BEGIN, SOURCE_END
+
+                evidence_text = _strip_rag_delimiters(
+                    result.context.text, begin=SOURCE_BEGIN, end=SOURCE_END
+                )
                 citation_dicts = [
                     {
                         "chunk_id": str(c.chunk_id),
@@ -646,6 +690,7 @@ class TutorService(BaseService):
                 )
                 return SimpleNamespace(
                     answer=output.answer,
+                    grounded=bool(output.grounded),
                     needs_clarification=output.needs_clarification,
                     model_name=model_name,
                     provider=provider_name,

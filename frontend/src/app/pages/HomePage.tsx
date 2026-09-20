@@ -149,7 +149,7 @@ export function HomePage() {
                 <SectionLabel id="partial-attention-heading">
                   Areas requiring attention
                 </SectionLabel>
-                <Card className="mt-2">
+                <Card variant="light" className="mt-2">
                   <CardContent className="flex flex-col gap-1 p-2">
                     {summary.attention.map((a) => (
                       <Link
@@ -271,7 +271,7 @@ export function HomePage() {
             <div className="grid gap-6 md:grid-cols-2">
               <section aria-labelledby="recent-heading">
                 <SectionLabel id="recent-heading">Recent projects</SectionLabel>
-                <Card className="mt-2">
+                <Card variant="light" className="mt-2">
                   <CardContent className="flex flex-col gap-1 p-2">
                     {home.recentProjects.length === 0 ? (
                       <div className="flex items-center gap-2 p-3">
@@ -311,7 +311,7 @@ export function HomePage() {
 
               <section aria-labelledby="attention-heading">
                 <SectionLabel id="attention-heading">Areas requiring attention</SectionLabel>
-                <Card className="mt-2">
+                <Card variant="light" className="mt-2">
                   <CardContent className="flex flex-col gap-1 p-2">
                     {home.attention.length === 0 ? (
                       <p className="p-3 text-sm text-muted-foreground">
@@ -346,7 +346,7 @@ export function HomePage() {
             {home.recommendedAction ? (
               <section aria-labelledby="next-heading">
                 <SectionLabel id="next-heading">Recommended next action</SectionLabel>
-                <Card className="mt-2 border-primary/25">
+                <Card variant="light" className="mt-2 border-primary/25">
                   <CardContent className="flex flex-col gap-2 p-5">
                     <p className="text-[15px] font-semibold tracking-tight">
                       What should I do next?

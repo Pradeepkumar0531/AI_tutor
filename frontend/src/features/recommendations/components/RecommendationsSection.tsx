@@ -1,8 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Bot, Check, Flag, Lightbulb, Play, Tag, X } from "lucide-react";
+import { BookOpen, Bot, Check, Lightbulb, Play, X } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, ErrorState } from "@/components/ui/states";
@@ -11,28 +10,45 @@ import { useFirstVisible } from "@/hooks/useFirstVisible";
 import { useAssessmentStore } from "@/stores/useAssessmentStore";
 import { useGrowthStore } from "@/stores/useGrowthStore";
 import { useRecommendationsStore } from "@/stores/useRecommendationsStore";
+import { cn } from "@/lib/utils";
 import type { Recommendation } from "@/api/recommendations";
+
+/** The single most actionable step, in backend-confirmed priority order. */
+function primaryAction(
+  rec: Recommendation,
+): "practice_quiz" | "open_material" | "ask_tutor" | null {
+  if (rec.actions.includes("practice_quiz") && rec.conceptId) return "practice_quiz";
+  if (rec.actions.includes("open_material") && rec.materialId) return "open_material";
+  if (rec.actions.includes("ask_tutor") && rec.conceptId) return "ask_tutor";
+  return null;
+}
 
 function ActionButtons({
   projectId,
   rec,
   disabled,
+  dark = false,
 }: {
   projectId: string;
   rec: Recommendation;
   disabled: boolean;
+  dark?: boolean;
 }) {
   const navigate = useNavigate();
   const practiceConcept = useAssessmentStore((s) => s.practiceConcept);
+  const primary = primaryAction(rec);
+  const ghostOnDark =
+    "border-white/20 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground";
 
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
+    <div className="mt-3 flex flex-wrap gap-2">
       {rec.actions.includes("open_material") && rec.materialId ? (
         <Button
           type="button"
-          variant="outline"
+          variant={primary === "open_material" ? (dark ? "secondary" : "default") : "outline"}
           size="sm"
           disabled={disabled}
+          className={cn(dark && primary !== "open_material" && ghostOnDark)}
           onClick={() => navigate(`/projects/${projectId}/materials/${rec.materialId}`)}
         >
           <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
@@ -42,9 +58,10 @@ function ActionButtons({
       {rec.actions.includes("practice_quiz") && rec.conceptId ? (
         <Button
           type="button"
-          variant="outline"
+          variant={primary === "practice_quiz" ? (dark ? "secondary" : "default") : "outline"}
           size="sm"
           disabled={disabled}
+          className={cn(dark && primary !== "practice_quiz" && ghostOnDark)}
           onClick={() => {
             // The quiz workspace lives on its own tab: take the learner there
             // once the practice attempt exists.
@@ -60,9 +77,10 @@ function ActionButtons({
       {rec.actions.includes("ask_tutor") && rec.conceptId ? (
         <Button
           type="button"
-          variant="outline"
+          variant={primary === "ask_tutor" ? (dark ? "secondary" : "default") : "outline"}
           size="sm"
           disabled={disabled}
+          className={cn(dark && primary !== "ask_tutor" && ghostOnDark)}
           onClick={() =>
             navigate(`/projects/${projectId}/tutor?tutor=${encodeURIComponent(rec.conceptName)}`)
           }
@@ -75,53 +93,93 @@ function ActionButtons({
   );
 }
 
-function RecommendationCard({ projectId, rec }: { projectId: string; rec: Recommendation }) {
+function DoneButtons({
+  projectId,
+  rec,
+  dark = false,
+}: {
+  projectId: string;
+  rec: Recommendation;
+  dark?: boolean;
+}) {
   const complete = useRecommendationsStore((s) => s.complete);
   const dismiss = useRecommendationsStore((s) => s.dismiss);
   const busyId = useRecommendationsStore((s) => s.busyId);
   const busy = busyId === rec.id;
 
   return (
-    <li className="rounded-lg border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-medium">{rec.title}</p>
-        <Badge tone="default">
-          <span className="inline-flex items-center gap-1">
-            <Flag className="h-3 w-3" aria-hidden="true" />
-            Priority {rec.priority}
-          </span>
-        </Badge>
+    <div className="mt-2 flex gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        onClick={() => void complete(projectId, rec.id)}
+        className={cn(
+          dark
+            ? "text-primary-foreground/75 hover:bg-white/10 hover:text-primary-foreground"
+            : "text-muted-foreground",
+        )}
+      >
+        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+        {busy ? "Working…" : "Mark done"}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        onClick={() => void dismiss(projectId, rec.id)}
+        className={cn(
+          dark
+            ? "text-primary-foreground/75 hover:bg-white/10 hover:text-primary-foreground"
+            : "text-muted-foreground",
+        )}
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+        Dismiss
+      </Button>
+    </div>
+  );
+}
+
+function PrimaryCard({ projectId, rec }: { projectId: string; rec: Recommendation }) {
+  const busyId = useRecommendationsStore((s) => s.busyId);
+  const busy = busyId === rec.id;
+  const reason = rec.reason?.trim() || rec.description?.trim() || null;
+
+  return (
+    <li className="card-dark rounded-[10px] border p-4 sm:p-5">
+      <p className="eyebrow">Recommended next</p>
+      <p className="mt-1.5 text-lg font-semibold leading-snug tracking-tight">{rec.title}</p>
+      {reason ? (
+        <p className="mt-1 max-w-xl text-sm leading-relaxed text-primary-foreground/75">{reason}</p>
+      ) : null}
+      <ActionButtons projectId={projectId} rec={rec} disabled={busy} dark />
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-primary-foreground/55">Priority {rec.priority}</span>
+        <DoneButtons projectId={projectId} rec={rec} dark />
       </div>
-      {rec.reason ? <p className="mt-1 text-sm text-muted-foreground">{rec.reason}</p> : null}
-      {rec.conceptName ? (
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Tag className="h-3.5 w-3.5" aria-hidden="true" />
-          Concept: {rec.conceptName}
-        </p>
+    </li>
+  );
+}
+
+function SecondaryCard({ projectId, rec }: { projectId: string; rec: Recommendation }) {
+  const busyId = useRecommendationsStore((s) => s.busyId);
+  const busy = busyId === rec.id;
+  const reason = rec.reason?.trim() || rec.description?.trim() || null;
+
+  return (
+    <li className="rounded-lg border bg-card p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="font-medium">{rec.title}</p>
+        <span className="shrink-0 text-[11px] text-muted-foreground">Priority {rec.priority}</span>
+      </div>
+      {reason ? (
+        <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{reason}</p>
       ) : null}
       <ActionButtons projectId={projectId} rec={rec} disabled={busy} />
-      <div className="mt-2 flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => void complete(projectId, rec.id)}
-        >
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          {busy ? "Working…" : "Mark done"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => void dismiss(projectId, rec.id)}
-        >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-          Dismiss
-        </Button>
-      </div>
+      <DoneButtons projectId={projectId} rec={rec} />
     </li>
   );
 }
@@ -133,11 +191,18 @@ export function RecommendationsSection({ projectId }: { projectId: string }) {
   const fetchList = useRecommendationsStore((s) => s.fetchList);
   const growth = useGrowthStore((s) => s.growth);
   const [sectionRef, visible] = useFirstVisible<HTMLElement>();
+  const [showAll, setShowAll] = React.useState(false);
 
   React.useEffect(() => {
     if (visible) void fetchList(projectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, visible]);
+
+  // Highest priority first; one primary action plus up to two compact
+  // follow-ups, with the rest one click away (real data, never dropped).
+  const ordered = React.useMemo(() => [...items].sort((a, b) => a.priority - b.priority), [items]);
+  const [primary, ...rest] = ordered;
+  const secondary = showAll ? rest : rest.slice(0, 2);
 
   return (
     <section
@@ -147,7 +212,7 @@ export function RecommendationsSection({ projectId }: { projectId: string }) {
       className="scroll-mt-24"
     >
       <SectionLabel id="recommendations-heading">Next action</SectionLabel>
-      <Card className="mt-2 border-primary/25">
+      <Card variant="light" className="mt-2 border-primary/25">
         <CardHeader className="pb-3">
           <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px]">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-primary">
@@ -185,11 +250,34 @@ export function RecommendationsSection({ projectId }: { projectId: string }) {
               />
             )
           ) : null}
-          <ul className="space-y-2">
-            {items.map((rec) => (
-              <RecommendationCard key={rec.id} projectId={projectId} rec={rec} />
-            ))}
-          </ul>
+          {primary ? (
+            <>
+              <ul className="space-y-2">
+                <PrimaryCard key={primary.id} projectId={projectId} rec={primary} />
+              </ul>
+              {secondary.length > 0 ? (
+                <>
+                  <p className="eyebrow pt-2">Also worth reviewing</p>
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {secondary.map((rec) => (
+                      <SecondaryCard key={rec.id} projectId={projectId} rec={rec} />
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+              {rest.length > 2 && !showAll ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAll(true)}
+                  className="text-muted-foreground"
+                >
+                  Show all {ordered.length} recommendations
+                </Button>
+              ) : null}
+            </>
+          ) : null}
         </CardContent>
       </Card>
     </section>

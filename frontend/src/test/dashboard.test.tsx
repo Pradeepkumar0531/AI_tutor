@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { analyticsApi } from "@/api/analytics";
+import { masteryApi } from "@/api/mastery";
 import { DashboardSection } from "@/features/dashboard/components/DashboardSection";
 import { useAnalyticsStore } from "@/stores/useAnalyticsStore";
+import { useMasteryStore } from "@/stores/useMasteryStore";
 
 // Only the HTTP boundary is mocked; mapping, store, and components run for real.
 vi.mock("@/api/analytics", () => ({
@@ -14,6 +16,9 @@ vi.mock("@/api/analytics", () => ({
     masteryTrend: vi.fn(),
   },
 }));
+vi.mock("@/api/mastery", () => ({
+  masteryApi: { list: vi.fn(), detail: vi.fn(), history: vi.fn() },
+}));
 
 const mockDashboard = analyticsApi.dashboard as Mock;
 const mockActivity = analyticsApi.activity as Mock;
@@ -22,6 +27,7 @@ const mockTrend = analyticsApi.masteryTrend as Mock;
 
 function reset() {
   useAnalyticsStore.getState().reset();
+  useMasteryStore.getState().reset();
   vi.clearAllMocks();
 }
 
@@ -127,12 +133,17 @@ describe("DashboardSection", () => {
   it("renders real summary cards with links to existing sections", async () => {
     healthy();
     renderSection();
-    await waitFor(() => expect(screen.getByText("68%")).toBeInTheDocument());
+    // "68%" appears in both the Overall Mastery card and the recent
+    // performance bars (same fixture value): scope to the card link.
+    await waitFor(() => expect(screen.getAllByText("68%").length).toBeGreaterThanOrEqual(2));
+    const masteryLink = screen
+      .getAllByText("68%")
+      .map((el) => el.closest("a"))
+      .find((a) => a?.textContent?.includes("Overall Mastery"));
+    expect(masteryLink?.getAttribute("href")).toBe("../growth");
     expect(screen.getByText("Improving")).toBeInTheDocument();
     expect(screen.getByText("24")).toBeInTheDocument();
     expect(screen.getByText("82")).toBeInTheDocument();
-    const masteryLink = screen.getByText("68%").closest("a");
-    expect(masteryLink?.getAttribute("href")).toBe("../growth");
   });
 
   it("renders activity chart, mastery trend, and timeline from real data", async () => {
@@ -167,6 +178,44 @@ describe("DashboardSection", () => {
     );
   });
 
+  it("renders mastery bars and attention list from real mastery data", async () => {
+    healthy();
+    (masteryApi.list as Mock).mockResolvedValue({
+      items: [
+        {
+          conceptId: "c1",
+          conceptName: "Mitosis",
+          masteryScore: 0.9,
+          confidence: 0.8,
+          trend: "STABLE",
+          evidenceCount: 4,
+          recentPerformance: [],
+          hasEvidence: true,
+          updatedAt: null,
+        },
+        {
+          conceptId: "c2",
+          conceptName: "Meiosis",
+          masteryScore: 0.3,
+          confidence: 0.5,
+          trend: "DECLINING",
+          evidenceCount: 3,
+          recentPerformance: [],
+          hasEvidence: true,
+          updatedAt: null,
+        },
+      ],
+      total: 2,
+    });
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Mastery by concept")).toBeInTheDocument());
+    // The top concept renders in both the ranked bars and the attention
+    // lens; the weakest renders in both as well.
+    expect(screen.getAllByLabelText("Mitosis 90%")).toHaveLength(2);
+    expect(screen.getByText("Areas needing attention")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Meiosis 30%")).toHaveLength(2);
+  });
+
   it("retries after failure", async () => {
     mockDashboard.mockRejectedValueOnce(new Error("down"));
     mockActivity.mockResolvedValue([]);
@@ -176,6 +225,11 @@ describe("DashboardSection", () => {
     await waitFor(() => expect(screen.getByText("Dashboard unavailable")).toBeInTheDocument());
     mockDashboard.mockResolvedValue(summary);
     fireEvent.click(screen.getByText("Try again"));
-    await waitFor(() => expect(screen.getByText("68%")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("68%").length).toBeGreaterThanOrEqual(1));
+    const masteryLink = screen
+      .getAllByText("68%")
+      .map((el) => el.closest("a"))
+      .find((a) => a?.textContent?.includes("Overall Mastery"));
+    expect(masteryLink?.getAttribute("href")).toBe("../growth");
   });
 });

@@ -73,6 +73,11 @@ export const useMaterialsStore = create<MaterialsState>((set, get) => ({
 
   fetch: async (projectId) => {
     const seq = get()._fetchSeq + 1;
+    // New project: clear the previous project's rows synchronously so they
+    // never render under the new project while loading (tutor-store contract).
+    if (get().projectId !== projectId) {
+      set({ ...initial, projectId, _fetchSeq: seq });
+    }
     set({ status: "loading", error: null, projectId, current: null, _fetchSeq: seq });
     try {
       const res = await materialsApi.list(projectId);
@@ -89,6 +94,15 @@ export const useMaterialsStore = create<MaterialsState>((set, get) => ({
   refreshOne: async (projectId, materialId) => {
     try {
       const detail = await materialsApi.get(projectId, materialId);
+      // A detail from another project is never merged into this scope.
+      if (detail.projectId !== projectId) return null;
+      if (get().projectId === null) {
+        // Initial load: adopt the scope (fetch() does the same on switches).
+        set({ ...initial, projectId });
+      } else if (get().projectId !== projectId) {
+        // Late poll from a previous project: drop it.
+        return null;
+      }
       set((s) => ({
         current: detail,
         items: s.items.some((i) => i.id === materialId)

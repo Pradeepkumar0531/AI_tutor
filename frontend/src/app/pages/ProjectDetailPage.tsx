@@ -1,6 +1,6 @@
 import * as React from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Archive, ArrowLeft, Calendar, FileText, Gauge, Pencil, Target } from "lucide-react";
+import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { Archive, ArrowLeft, FileText, Gauge, Pencil, Target } from "lucide-react";
 
 import { toApiError } from "@/api/client";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { PageContainer, Breadcrumbs } from "@/components/layout/PageHeader";
 import { ErrorState } from "@/components/ui/states";
 import {
-  ProgressBar,
   SectionLabel,
   SectionLoading,
   SkeletonHeading,
@@ -33,7 +32,6 @@ import { cn } from "@/lib/utils";
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { push } = useToast();
 
   const project = useProjectsStore((s) => s.current);
@@ -65,20 +63,21 @@ export function ProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spaceId]);
 
-  // Tab switches render fresh content at the top of the workspace.
-  // Property assignment (not window.scrollTo) so test environments without
-  // implemented scrolling stay silent.
-  React.useEffect(() => {
-    const el = document.scrollingElement;
-    if (el) el.scrollTop = 0;
-  }, [location.pathname]);
-
   if (!projectId) {
     return (
       <PageContainer>
         <ErrorState title="Project not found" description="This project does not exist." />
       </PageContainer>
     );
+  }
+
+  // Route identity: the component instance is reused across client-side
+  // navigation, so the first render for project B still holds project A (the
+  // fetch effect hasn't run yet). Never render it — show the skeleton until
+  // the store holds the project for THIS route. The error branch below still
+  // handles genuine load failures (store clears `current` on error).
+  if (project && project.id !== projectId) {
+    return <ProjectDetailSkeleton />;
   }
 
   if (status === "loading" && !project) {
@@ -109,7 +108,6 @@ export function ProjectDetailPage() {
   const materialCount = project.materialCount ?? 0;
   const tracked = materialProjectId === project.id ? materialItems : [];
   const readyCount = tracked.filter((m) => m.status === "READY").length;
-  const progressPct = tracked.length > 0 ? Math.round((readyCount / tracked.length) * 100) : null;
   const masteryAvg =
     masteryItems.length > 0
       ? Math.round(
@@ -160,95 +158,76 @@ export function ProjectDetailPage() {
           { label: project.name },
         ]}
       />
-      <Link
-        to={`/spaces/${project.spaceId}`}
-        className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to {spaceName}
-      </Link>
-
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <SectionLabel>Project</SectionLabel>
-          <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">
-            {project.name}
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {project.description || project.learningGoal || "Your learning workspace."}
-          </p>
+      <div className="card-dark mt-3 rounded-[10px] border p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <SectionLabel>Project</SectionLabel>
+            <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">
+              {project.name}
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-primary-foreground/75">
+              {project.description || project.learningGoal || "Your learning workspace."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Edit project
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setArchiveOpen(true)}>
+              <Archive className="h-4 w-4" aria-hidden="true" />
+              Archive
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            Edit project
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
-            <Archive className="h-4 w-4" aria-hidden="true" />
-            Archive
-          </Button>
+
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-primary-foreground/75">
+          {project.learningGoal ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5" aria-hidden="true" />
+              Goal: {project.learningGoal}
+            </span>
+          ) : null}
+          {project.difficulty ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
+              Difficulty: {project.difficulty.toLowerCase()}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            {materialCount} {materialCount === 1 ? "material" : "materials"}
+          </span>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-        {project.learningGoal ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5" aria-hidden="true" />
-            Goal: {project.learningGoal}
-          </span>
-        ) : null}
-        {project.difficulty ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
-            Difficulty: {project.difficulty.toLowerCase()}
-          </span>
-        ) : null}
-        <span className="inline-flex items-center gap-1.5">
-          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-          {materialCount} {materialCount === 1 ? "material" : "materials"}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-          Updated {new Date(project.updatedAt).toLocaleDateString()}
-        </span>
-      </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-[10px] border bg-card p-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="card-dark rounded-[10px] border p-4">
           <p className="eyebrow">Materials ready</p>
           <p className="mt-2 text-[26px] font-semibold leading-none tracking-tight">
             {tracked.length > 0 ? `${readyCount}/${tracked.length}` : materialCount}
           </p>
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1.5 text-xs text-primary-foreground/70">
             {tracked.length > 0 ? "tracked in this session" : "total materials"}
           </p>
         </div>
-        <div className="rounded-[10px] border bg-card p-4">
+        <div className="card-dark rounded-[10px] border p-4">
           <p className="eyebrow">Average mastery</p>
           <p className="mt-2 text-[26px] font-semibold leading-none tracking-tight">
             {masteryAvg !== null ? `${masteryAvg}%` : "—"}
           </p>
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1.5 text-xs text-primary-foreground/70">
             across {masteryItems.length} concepts
           </p>
         </div>
-        <div className="rounded-[10px] border bg-card p-4">
+        <div className="card-dark rounded-[10px] border p-4">
           <p className="eyebrow">Processing</p>
           <p className="mt-2 text-[26px] font-semibold leading-none tracking-tight">
             {tracked.length > 0 ? tracked.length - readyCount : 0}
           </p>
-          <p className="mt-1.5 text-xs text-muted-foreground">materials pending</p>
+          <p className="mt-1.5 text-xs text-primary-foreground/70">materials pending</p>
         </div>
       </div>
-
-      {progressPct !== null ? (
-        <div className="mt-4 max-w-md">
-          <ProgressBar
-            value={progressPct}
-            label={`Materials ready (${readyCount}/${tracked.length})`}
-          />
-        </div>
-      ) : null}
 
       <nav
         aria-label="Project"

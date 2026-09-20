@@ -61,6 +61,23 @@ what makes resume and citation provenance sound.
   references) vs `GENERAL_LEARNING` vs `CLARIFICATION` (history-relative) vs
   `UNSUPPORTED` (universal destructive/credential/admin/tool actions, refused
   before retrieval). No model call, no side effects.
+- Retrieval runs for every substantive kind (`PROJECT_GROUNDED` and
+  `GENERAL_LEARNING`): most factual questions carry no lexical material
+  reference, and skipping retrieval for them guarantees a refusal despite
+  indexed evidence. `PROJECT_GROUNDED` *requires* evidence (insufficient →
+  refusal without a model call); `GENERAL_LEARNING` grounds opportunistically
+  (strong evidence → cited answer,   otherwise a general answer with no
+  citations). `CLARIFICATION` reuses conversation history instead of
+  retrieving on bare follow-ups like "why?".
+- Citation authority differs by kind: `PROJECT_GROUNDED` is
+  app-authoritative (retrieved evidence → citations even when the model is
+  humble); `GENERAL_LEARNING` is model-gated (citations attach only when the
+  model reports its answer used the evidence), because weak retrieval
+  routinely clears the similarity threshold on short slide chunks and
+  app-authoritative citations would attach noise to general answers.
+- Admin-only diagnostic: `GET /api/v1/admin/rag/diagnose?project_id&query`
+  returns embedding model/dimension, threshold, per-chunk scores and page
+  provenance previews — never vectors, never secrets.
 
 ## Context building
 

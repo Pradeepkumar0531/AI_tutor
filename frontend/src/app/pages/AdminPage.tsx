@@ -41,7 +41,7 @@ import { useAdminStore } from "@/stores/useAdminStore";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card>
+    <Card variant="light">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>

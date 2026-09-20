@@ -70,12 +70,9 @@ async function completeMixedQuiz(page: Page) {
   expect(await page.getByRole("radiogroup").count()).toBe(2);
   await page.getByRole("radiogroup").nth(0).getByRole("radio").nth(1).check();
   await page.getByRole("radiogroup").nth(1).getByRole("radio").first().check();
-  for (let i = 0; i < 2; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
-  await expect(page.getByText(/Answered 2 of 2/)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Submit answer" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
+  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
 }
 
 test("growth overview, recommendations lifecycle, and persistence", async ({ page }) => {

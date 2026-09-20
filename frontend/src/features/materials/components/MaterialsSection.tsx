@@ -61,19 +61,19 @@ export function MaterialsSection({ projectId }: { projectId: string }) {
     <section aria-labelledby="materials-heading">
       <SectionLabel id="materials-heading">Materials</SectionLabel>
       <div className="mb-4 mt-2 grid grid-cols-3 gap-3">
-        <div className="rounded-[10px] border bg-card p-3 sm:p-4">
+        <div className="card-dark rounded-[10px] border p-3 sm:p-4">
           <p className="eyebrow">Materials</p>
           <p className="mt-1.5 text-xl font-semibold leading-none tracking-tight sm:text-2xl">
             {total}
           </p>
         </div>
-        <div className="rounded-[10px] border bg-card p-3 sm:p-4">
+        <div className="card-dark rounded-[10px] border p-3 sm:p-4">
           <p className="eyebrow">Ready materials</p>
           <p className="mt-1.5 text-xl font-semibold leading-none tracking-tight sm:text-2xl">
             {readyCount}
           </p>
         </div>
-        <div className="rounded-[10px] border bg-card p-3 sm:p-4">
+        <div className="card-dark rounded-[10px] border p-3 sm:p-4">
           <p className="eyebrow">Concepts</p>
           <p className="mt-1.5 text-xl font-semibold leading-none tracking-tight sm:text-2xl">
             {concepts.length}

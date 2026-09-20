@@ -11,6 +11,8 @@ import {
 import type { LoadStatus } from "./useSpacesStore";
 
 interface AnalyticsState {
+  /** Project owning every slice below (tutor-store scoping contract). */
+  projectId: string | null;
   summary: DashboardSummary | null;
   summaryState: LoadStatus;
   activity: ActivityItem[];
@@ -25,6 +27,7 @@ interface AnalyticsState {
 }
 
 const initial = {
+  projectId: null as string | null,
   summary: null as DashboardSummary | null,
   summaryState: "idle" as LoadStatus,
   activity: [] as ActivityItem[],
@@ -40,6 +43,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   ...initial,
 
   fetchDashboard: async (projectId, range) => {
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     const nextRange = range ?? get().range;
     set({
       summaryState: "loading",
@@ -54,6 +58,9 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
       analyticsApi.activityByDay(projectId, nextRange),
       analyticsApi.masteryTrend(projectId),
     ]);
+    // Late responses from a previous project are dropped wholesale: partial
+    // sets must never mix projects.
+    if (get().projectId !== projectId) return;
     // Graceful partial rendering: each section stands on its own result, so
     // one failed query never blanks the whole dashboard.
     const failures: string[] = [];

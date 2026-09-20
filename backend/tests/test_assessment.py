@@ -244,6 +244,22 @@ def test_create_quiz_grounded_with_provenance(session: Session) -> None:
     assert quiz.generation_metadata["strategy"] == "default"
 
 
+def test_create_quiz_default_title_from_assessed_concepts(session: Session) -> None:
+    owner, project, _ = _seed_project(session, CONCEPT_TEXTS)
+    svc = _service(session)
+    quiz, _ = _make_quiz(session, svc, owner, project)
+    assert quiz.title != "Untitled quiz"
+    assert "Practice Quiz" in quiz.title
+    assert any(name in quiz.title for name in CONCEPT_TEXTS)
+
+
+def test_create_quiz_explicit_title_preserved(session: Session) -> None:
+    owner, project, _ = _seed_project(session, CONCEPT_TEXTS)
+    svc = _service(session)
+    quiz, _ = _make_quiz(session, svc, owner, project, title="  My Custom Title  ")
+    assert quiz.title == "My Custom Title"
+
+
 def test_create_quiz_learner_safe_view(session: Session) -> None:
     owner, project, _ = _seed_project(session, CONCEPT_TEXTS)
     svc = _service(session)
@@ -1106,5 +1122,53 @@ def test_routes_end_to_end_learner_safe(session: Session, monkeypatch: pytest.Mo
         fetched = client.get(f"/api/v1/projects/{project.id}/assessments/{body['assessment_id']}")
         assert fetched.status_code == 200
         assert fetched.json()["score"] == body["score"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_routes_quiz_replay_is_idempotent(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Browser retries / double-clicks must collapse server-side: the same
+    snake_case ``client_request_key`` returns the original quiz with 200 and
+    persists exactly one quiz row. (The frontend previously sent camelCase
+    ``clientRequestKey``, which the schema silently dropped.)"""
+    from fastapi.testclient import TestClient
+
+    import app.ai.service as ai_service_module
+    from app.db.session import get_db
+    from app.main import create_app
+
+    monkeypatch.setattr(ai_service_module, "ai_service", _fake_ai())
+
+    owner, project, _ = _seed_project(session, CONCEPT_TEXTS)
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: session
+    client = TestClient(app)
+    from app.auth.dependencies import get_current_user
+
+    async def _owner():
+        return owner
+
+    app.dependency_overrides[get_current_user] = _owner
+    try:
+        payload = {
+            "question_count": 2,
+            "question_types": ["MCQ"],
+            "client_request_key": "browser-retry-1",
+        }
+        first = client.post(f"/api/v1/projects/{project.id}/quizzes", json=payload)
+        assert first.status_code == 201, first.text
+        # Unknown camelCase twin is ignored (never errors, never replays).
+        twin = client.post(
+            f"/api/v1/projects/{project.id}/quizzes",
+            json={**payload, "clientRequestKey": "browser-retry-1"},
+        )
+        assert twin.status_code == 200, twin.text
+        assert twin.json()["quiz"]["id"] == first.json()["quiz"]["id"]
+        from app.models.assessment import Quiz
+
+        rows = session.query(Quiz).filter_by(project_id=project.id).all()
+        assert len(rows) == 1
     finally:
         app.dependency_overrides.clear()

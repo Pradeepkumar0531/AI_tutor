@@ -160,12 +160,15 @@ export function KnowledgeSection({ projectId }: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, materialsSignature, visible]);
 
-  // While PROCESSING, poll status; when it flips to READY, reload concepts
-  // once. The server is the source of truth — no fake progress is synthesized.
+  // While non-terminal (PENDING or PROCESSING), poll status; when it flips
+  // to READY, reload concepts once. PENDING must poll too: a freshly READY
+  // material briefly reports PENDING before its knowledge job is claimed,
+  // and without polling the UI would sit on PENDING forever. The server is
+  // the source of truth — no fake progress is synthesized.
   React.useEffect(() => {
     if (!visible) return;
     if (statusState !== "ready" || !status) return;
-    if (status === "PROCESSING") {
+    if (status === "PROCESSING" || status === "PENDING") {
       const timer = setInterval(() => {
         if (document.visibilityState !== "hidden") void fetchStatus(projectId);
       }, 4000);
@@ -192,7 +195,7 @@ export function KnowledgeSection({ projectId }: { projectId: string }) {
       className="scroll-mt-24"
     >
       <SectionLabel id="knowledge-heading">Knowledge</SectionLabel>
-      <Card className="mt-2">
+      <Card variant="light" className="mt-2">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px]">

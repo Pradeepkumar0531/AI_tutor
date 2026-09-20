@@ -1,5 +1,5 @@
 import * as React from "react";
-import { BarChart3, Clock, History, LayoutDashboard, TrendingUp } from "lucide-react";
+import { BarChart3, History, LayoutDashboard, Target, TrendingUp } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SectionLabel, SectionLoading, SkeletonChart, SkeletonStat } from "@/components/ui";
 import { useFirstVisible } from "@/hooks/useFirstVisible";
 import { useAnalyticsStore } from "@/stores/useAnalyticsStore";
+import { useMasteryStore } from "@/stores/useMasteryStore";
 import type { DateRange } from "@/api/analytics";
 
 const CHART_BLUE = "#123B6D";
@@ -28,11 +29,11 @@ function StatCard({
     <>
       <p className="eyebrow">{label}</p>
       <p className="mt-1.5 text-2xl font-semibold tracking-tight">{value}</p>
-      {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+      {sub ? <p className="mt-1 text-xs text-primary-foreground/65">{sub}</p> : null}
     </>
   );
   return (
-    <div className="rounded-[10px] border bg-card p-3">
+    <div className="card-dark rounded-[10px] border p-3">
       {href ? (
         <a href={href} className="block underline-offset-4 hover:underline">
           {body}
@@ -40,6 +41,51 @@ function StatCard({
       ) : (
         body
       )}
+    </div>
+  );
+}
+
+function ConceptBars({
+  items,
+  maxItems,
+  label,
+}: {
+  items: { id: string; name: string; score: number }[];
+  maxItems: number;
+  label: string;
+}) {
+  const shown = items.slice(0, maxItems);
+  if (shown.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium">{label}</p>
+      <ul className="space-y-1.5">
+        {shown.map((c) => (
+          <li key={c.id} className="flex items-center gap-2 text-sm">
+            <span className="w-36 shrink-0 truncate text-muted-foreground" title={c.name}>
+              {c.name}
+            </span>
+            <span
+              className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`${c.name} ${Math.round(c.score * 100)}%`}
+            >
+              <span
+                className="block h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--accent-blue)),hsl(var(--primary)))]"
+                style={{ width: `${Math.round(c.score * 100)}%` }}
+              />
+            </span>
+            <span className="w-10 shrink-0 text-right font-mono-tech text-xs font-semibold">
+              {Math.round(c.score * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+      {items.length > shown.length ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Showing {shown.length} of {items.length} concepts.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -75,17 +121,33 @@ export function DashboardSection({ projectId }: { projectId: string }) {
   const range = useAnalyticsStore((s) => s.range);
   const error = useAnalyticsStore((s) => s.error);
   const fetchDashboard = useAnalyticsStore((s) => s.fetchDashboard);
+  const masteryItems = useMasteryStore((s) => s.items);
+  const fetchMastery = useMasteryStore((s) => s.fetchList);
   const [sectionRef, visible] = useFirstVisible<HTMLElement>();
 
   React.useEffect(() => {
-    if (visible) void fetchDashboard(projectId);
+    if (visible) {
+      void fetchDashboard(projectId);
+      void fetchMastery(projectId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, visible]);
+
+  // Visual-first derivations from real store data (never fabricated).
+  const withEvidence = React.useMemo(
+    () => masteryItems.filter((m) => m.hasEvidence),
+    [masteryItems],
+  );
+  const byMasteryAsc = React.useMemo(
+    () => [...withEvidence].sort((a, b) => a.masteryScore - b.masteryScore),
+    [withEvidence],
+  );
+  const recentScores = React.useMemo(() => masteryTrend.slice(-8), [masteryTrend]);
 
   return (
     <section aria-labelledby="project-analytics-heading" ref={sectionRef}>
       <SectionLabel id="project-analytics-heading">Analytics</SectionLabel>
-      <Card className="mt-2">
+      <Card variant="light" className="mt-2">
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px]">
@@ -198,6 +260,16 @@ export function DashboardSection({ projectId }: { projectId: string }) {
                   title="Activity unavailable"
                   description={error ?? undefined}
                   onRetry={() => void fetchDashboard(projectId)}
+                />
+              ) : null}
+
+              {withEvidence.length > 0 ? (
+                <ConceptBars
+                  items={[...withEvidence]
+                    .sort((a, b) => b.masteryScore - a.masteryScore)
+                    .map((m) => ({ id: m.conceptId, name: m.conceptName, score: m.masteryScore }))}
+                  maxItems={8}
+                  label="Mastery by concept"
                 />
               ) : null}
 
@@ -332,6 +404,52 @@ export function DashboardSection({ projectId }: { projectId: string }) {
                 />
               ) : null}
 
+              {recentScores.length >= 2 ? (
+                <ConceptBars
+                  items={recentScores.map((p, i) => ({
+                    id: `${p.date}-${i}`,
+                    name: new Date(p.date).toLocaleDateString(),
+                    score: p.score,
+                  }))}
+                  maxItems={8}
+                  label="Recent performance"
+                />
+              ) : null}
+
+              {byMasteryAsc.length > 0 ? (
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                    <Target className="h-4 w-4 text-primary" aria-hidden="true" />
+                    Areas needing attention
+                  </p>
+                  <ul className="space-y-1.5">
+                    {byMasteryAsc.slice(0, 3).map((m) => (
+                      <li key={m.conceptId} className="flex items-center gap-2 text-sm">
+                        <span
+                          className="w-36 shrink-0 truncate text-muted-foreground"
+                          title={m.conceptName}
+                        >
+                          {m.conceptName}
+                        </span>
+                        <span
+                          className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
+                          role="img"
+                          aria-label={`${m.conceptName} ${Math.round(m.masteryScore * 100)}%`}
+                        >
+                          <span
+                            className="block h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--accent-blue)),hsl(var(--primary)))]"
+                            style={{ width: `${Math.round(m.masteryScore * 100)}%` }}
+                          />
+                        </span>
+                        <span className="w-10 shrink-0 text-right font-mono-tech text-xs font-semibold">
+                          {Math.round(m.masteryScore * 100)}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <div>
                 <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
                   <History className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -353,13 +471,6 @@ export function DashboardSection({ projectId }: { projectId: string }) {
                 )}
               </div>
             </>
-          ) : null}
-
-          {summary?.lastActivityAt ? (
-            <p className="font-mono-tech flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-              Last activity {new Date(summary.lastActivityAt).toLocaleString()}
-            </p>
           ) : null}
         </CardContent>
       </Card>

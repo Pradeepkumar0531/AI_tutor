@@ -127,7 +127,7 @@ export function PdfViewer({
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card variant="light" className="overflow-hidden">
       <CardHeader className="border-b bg-card pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="flex min-w-0 items-center gap-2 text-[15px]">

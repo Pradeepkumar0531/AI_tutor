@@ -1,4 +1,4 @@
-import { ArrowLeft, ClipboardList, History, List, Play, Sparkles, X } from "lucide-react";
+import { ClipboardList, History, List, Play, Sparkles, X } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +109,8 @@ export function QuizSection({ projectId }: { projectId: string }) {
   const result = useAssessmentStore((s) => s.result);
   const error = useAssessmentStore((s) => s.error);
   const fetchQuizzes = useAssessmentStore((s) => s.fetchQuizzes);
+  const clearError = useAssessmentStore((s) => s.clearError);
+  const busyFailed = useAssessmentStore((s) => s.busyState === "error");
   const selectQuiz = useAssessmentStore((s) => s.selectQuiz);
   const startAttempt = useAssessmentStore((s) => s.startAttempt);
   const openAssessment = useAssessmentStore((s) => s.openAssessment);
@@ -136,21 +138,15 @@ export function QuizSection({ projectId }: { projectId: string }) {
     return (
       <section aria-labelledby="quiz-heading">
         <SectionLabel id="quiz-heading">Quiz</SectionLabel>
-        <Card className="mt-2">
+        <Card variant="light" className="mt-2">
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-primary" aria-hidden="true" />
-                Assessment result
-              </CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={backToList}>
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Back to quizzes
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" aria-hidden="true" />
+              Assessment result
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <AssessmentResultView result={result} />
+            <AssessmentResultView result={result} projectId={projectId} onBack={backToList} />
           </CardContent>
         </Card>
       </section>
@@ -161,7 +157,7 @@ export function QuizSection({ projectId }: { projectId: string }) {
     return (
       <section aria-labelledby="quiz-heading">
         <SectionLabel id="quiz-heading">Quiz</SectionLabel>
-        <Card className="mt-2">
+        <Card variant="light" className="mt-2">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
@@ -211,7 +207,7 @@ export function QuizSection({ projectId }: { projectId: string }) {
 
       <div className="mt-4 space-y-4">
         {/* Step 1 — create */}
-        <Card accent>
+        <Card variant="light" accent>
           <CardHeader className="pb-3">
             <p className="eyebrow">Step 1 · Create</p>
             <CardTitle className="mt-1 flex min-w-0 items-center gap-2.5 text-[15px]">
@@ -246,6 +242,25 @@ export function QuizSection({ projectId }: { projectId: string }) {
                 />
               </SectionLoading>
             ) : null}
+            {/* Generation failures were previously silent (spinner then
+              nothing): surface the store error. Retry re-reads the list
+              first — a timed-out request may already have persisted the
+              quiz server-side, and blindly regenerating would duplicate
+              it. */}
+            {!generating && busyFailed ? (
+              <ErrorState
+                title="Quiz generation failed"
+                description={
+                  error
+                    ? `${error} If the request timed out, the quiz may already exist — reloading the list shows it.`
+                    : undefined
+                }
+                onRetry={() => {
+                  clearError();
+                  void fetchQuizzes(projectId);
+                }}
+              />
+            ) : null}
 
             {activeQuiz ? (
               <div className="card-hero rounded-lg border p-4">
@@ -273,7 +288,7 @@ export function QuizSection({ projectId }: { projectId: string }) {
         </Card>
 
         {/* Step 2 — pick a quiz */}
-        <Card>
+        <Card variant="light">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <div>

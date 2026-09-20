@@ -10,7 +10,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.ai.base import EmbedRequest
-from app.ai.errors import AITransientError, TutorGenerationFailed
+from app.ai.errors import (
+    AITransientError,
+    EmbeddingConfigurationError,
+    TutorGenerationFailed,
+)
 from app.ai.fakes import DeterministicEmbeddingProvider, FakeChatProvider
 from app.ai.prompts import SOURCE_BEGIN, SOURCE_END, build_tutor_prompt
 from app.ai.service import AIService
@@ -353,7 +357,10 @@ def test_missing_groq_key_is_safe_configuration_error(session: Session) -> None:
     # Real provider path with no key configured.
     svc.ai_service = AIService()
     conv = svc.create_conversation(user_id=owner.id, project_id=project.id)
-    with pytest.raises(TutorGenerationFailed):
+    # Retrieval runs before generation for substantive questions, so the
+    # missing embedding key surfaces first. Either way the failure is a safe
+    # configuration error — never a leak, never a fabricated answer.
+    with pytest.raises(EmbeddingConfigurationError):
         asyncio.run(
             svc.send_message(
                 user_id=owner.id,

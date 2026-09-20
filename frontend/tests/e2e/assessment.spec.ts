@@ -84,13 +84,14 @@ test("quiz journey: generate, answer, complete, result persists", async ({ page 
 
   await generateQuiz(page, "3");
 
-  // Fill every answer first (MCQ: first option is correct by fake-AI
-  // contract; open-ended: both chunk sentences cover any reference), then
-  // submit one by one — submits after the first wait for the in-flight
-  // request via the disabled state.
+  // One assessment, one submission: draft every answer locally (MCQ: first
+  // option is correct by fake-AI contract; open-ended: both chunk sentences
+  // cover any reference), then a single Submit Quiz persists all answers and
+  // completes. No per-question submit buttons exist.
   const mcqCount = await page.getByRole("radiogroup").count();
   const openCount = await page.getByLabel(/Answer for question/).count();
   expect(mcqCount + openCount).toBe(3);
+  await expect(page.getByRole("button", { name: "Submit answer" })).toHaveCount(0);
   for (let i = 0; i < mcqCount; i++) {
     await page.getByRole("radiogroup").nth(i).getByRole("radio").first().check();
   }
@@ -100,15 +101,15 @@ test("quiz journey: generate, answer, complete, result persists", async ({ page 
       .nth(i)
       .fill(`${CHUNK_ONE} ${CHUNK_TWO}`);
   }
-  for (let i = 0; i < mcqCount + openCount; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
-  await expect(page.getByText(/Answered 3 of 3/)).toBeVisible({ timeout: 60_000 });
-
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
+  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("100%", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("3 of 3 correct")).toBeVisible();
   await expect(page.getByText("Concept performance")).toBeVisible();
+  // Concise per-question lines plus an expandable review.
+  await expect(page.getByText(/Q1 — Correct\./).first()).toBeVisible();
+  await page.getByRole("button", { name: "Review answers" }).click();
+  await expect(page.getByText(/you chose A/).first()).toBeVisible();
 
   // Reload: server state restores the result through history.
   await page.reload();
@@ -143,12 +144,8 @@ test("adaptive selection resurfaces missed concepts", async ({ page }) => {
   expect(await page.getByRole("radiogroup").count()).toBe(2);
   await page.getByRole("radiogroup").nth(0).getByRole("radio").nth(1).check();
   await page.getByRole("radiogroup").nth(1).getByRole("radio").first().check();
-  for (let i = 0; i < 2; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
-  await expect(page.getByText(/Answered 2 of 2/)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
+  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
 
   // Second quiz: the missed concept must resurface (mistake-weighted
   // selection), even though unseen concepts remain.

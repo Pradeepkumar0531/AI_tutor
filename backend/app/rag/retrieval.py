@@ -239,6 +239,48 @@ class RetrievalService:
         if project is None:
             # Non-disclosing: cross-tenant and missing projects look identical.
             raise NotFoundError("Project not found.")
+        return await self._execute(
+            project_id=project.id,
+            query=cleaned,
+            top_k=top_k,
+            threshold=threshold,
+            material_ids=material_ids,
+            max_chunks=max_chunks,
+            max_chars=max_chars,
+        )
+
+    async def diagnose_for_admin(
+        self,
+        *,
+        project_id: uuid.UUID,
+        query: str,
+        top_k: int | None = None,
+    ) -> SearchResult:
+        """Ownership-blind retrieval for the admin RAG diagnostic endpoint.
+        The route is already gated by server-side ``require_admin``; unlike
+        ``search`` this resolves the project directly so admins can inspect
+        any tenant's retrieval health. Never returns vectors."""
+        from app.models.learning import Project
+
+        cleaned = (query or "").strip()
+        if not cleaned:
+            raise BadRequestError("Search query must not be empty.")
+        project = self.session.get(Project, project_id)
+        if project is None:
+            raise NotFoundError("Project not found.")
+        return await self._execute(project_id=project.id, query=cleaned, top_k=top_k)
+
+    async def _execute(
+        self,
+        *,
+        project_id: uuid.UUID,
+        query: str,
+        top_k: int | None = None,
+        threshold: float | None = None,
+        material_ids: list[uuid.UUID] | None = None,
+        max_chunks: int | None = None,
+        max_chars: int | None = None,
+    ) -> SearchResult:
         top_k = min(max(top_k if top_k is not None else self.settings.rag_top_k, 1), 50)
         threshold = min(
             max(
@@ -257,9 +299,9 @@ class RetrievalService:
         )
 
         started = time.perf_counter()
-        query_vector = await self.embedding_service.embed_query(cleaned)
+        query_vector = await self.embedding_service.embed_query(query)
         scored = self.chunks.search_similar(
-            project.id, query_vector, limit=top_k, material_ids=material_ids
+            project_id, query_vector, limit=top_k, material_ids=material_ids
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
         results = [self._to_retrieved(s) for s in scored if s.similarity >= threshold]
@@ -270,7 +312,7 @@ class RetrievalService:
         log.info(
             "rag search project_id=%s top_k=%s threshold=%s returned=%s best=%s "
             "insufficient=%s latency_ms=%s",
-            project.id,
+            project_id,
             top_k,
             round(threshold, 3),
             len(results),
@@ -279,7 +321,7 @@ class RetrievalService:
             latency_ms,
         )
         return SearchResult(
-            query=cleaned,
+            query=query,
             results=results,
             citations=context.citations,
             context=context,

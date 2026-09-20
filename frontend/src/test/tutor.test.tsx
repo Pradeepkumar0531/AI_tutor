@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { tutorApi } from "@/api/tutor";
 import { TutorSection } from "@/features/tutor/components/TutorSection";
+import { useKnowledgeStore } from "@/stores/useKnowledgeStore";
 import { useTutorStore } from "@/stores/useTutorStore";
 
 // Only the HTTP boundary is mocked; mapping, store, and component run for real.
@@ -14,6 +15,21 @@ vi.mock("@/api/tutor", () => ({
     send: vi.fn(),
   },
 }));
+// TutorSection also reads project knowledge readiness (display-only banner);
+// default it to READY so existing tutor tests exercise the normal experience.
+vi.mock("@/api/knowledge", () => ({
+  knowledgeApi: {
+    status: vi.fn().mockResolvedValue({
+      project_id: "proj-1",
+      status: "READY",
+      totals: { chunks_total: 1, chunks_embedded: 1, concepts: 0, materials_ready: 1 },
+    }),
+    concepts: vi.fn(),
+    concept: vi.fn(),
+    search: vi.fn(),
+    reprocess: vi.fn(),
+  },
+}));
 
 const mockConversations = tutorApi.conversations as Mock;
 const mockCreate = tutorApi.createConversation as Mock;
@@ -22,6 +38,9 @@ const mockSend = tutorApi.send as Mock;
 
 function reset() {
   useTutorStore.getState().reset();
+  // The knowledge store is global too; TutorSection's readiness banner shares
+  // it, so reset it alongside to keep tests isolated.
+  useKnowledgeStore.getState().reset();
   vi.clearAllMocks();
 }
 

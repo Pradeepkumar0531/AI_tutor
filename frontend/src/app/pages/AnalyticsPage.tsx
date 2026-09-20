@@ -114,7 +114,7 @@ export function AnalyticsPage() {
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <Card>
+              <Card variant="light">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TriangleAlert className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -137,7 +137,7 @@ export function AnalyticsPage() {
                   )}
                 </CardContent>
               </Card>
-              <Card>
+              <Card variant="light">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-primary" aria-hidden="true" />

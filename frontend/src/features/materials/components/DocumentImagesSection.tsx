@@ -100,7 +100,7 @@ export function DocumentImagesSection({
   }, [projectId, materialId, status]);
 
   return (
-    <Card className="mt-4">
+    <Card variant="light" className="mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ImageIcon className="h-5 w-5 text-primary" aria-hidden="true" />

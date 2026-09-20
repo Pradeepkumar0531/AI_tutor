@@ -54,7 +54,7 @@ export function SystemPage() {
         }
       />
       <div className="grid gap-4">
-        <Card>
+        <Card variant="light">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Server className="h-5 w-5 text-primary" aria-hidden="true" />

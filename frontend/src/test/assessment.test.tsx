@@ -282,7 +282,27 @@ describe("QuizSection", () => {
     expect(document.body.textContent).not.toMatch(/correct_option_id|reference_answer/);
   });
 
-  it("takes an MCQ: submit, feedback, correct reveal, progress", async () => {
+  it("surfaces a generation failure and retry discovers the persisted quiz", async () => {
+    // Regression: generation failures used to be silent (spinner, then
+    // nothing). Worse, a timed-out request had already persisted the quiz —
+    // the retry must re-read the list (finding the ghost) rather than
+    // blindly regenerating a duplicate.
+    listed();
+    mockCreate.mockRejectedValueOnce(new Error("Could not reach the server."));
+    renderSection();
+    await waitFor(() => expect(screen.getByText("Generate quiz")).toBeEnabled());
+    fireEvent.click(screen.getByText("Generate quiz"));
+    await waitFor(() => expect(screen.getByText("Quiz generation failed")).toBeInTheDocument());
+    expect(screen.getByText(/Could not reach the server/)).toBeInTheDocument();
+    // The timed-out quiz actually persisted: the list now returns it.
+    mockQuizzes.mockResolvedValue([{ ...quiz, title: "Untitled quiz (recovered)" }]);
+    fireEvent.click(screen.getByText("Try again"));
+    await waitFor(() => expect(screen.getByText("Untitled quiz (recovered)")).toBeInTheDocument());
+    expect(screen.queryByText("Quiz generation failed")).not.toBeInTheDocument();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers drafts locally and submits everything with one Submit Quiz", async () => {
     listed();
     mockCreate.mockResolvedValue({ quiz, questions: [mcq, opened] });
     mockStart.mockResolvedValue({
@@ -299,6 +319,8 @@ describe("QuizSection", () => {
       correctOptionId: "A",
       evaluation: null,
     });
+    // Every answer re-reads the attempt from the server; the final read
+    // backs the result view's per-question lines.
     mockAttempt.mockResolvedValue({
       attempt,
       questions: [
@@ -313,21 +335,54 @@ describe("QuizSection", () => {
             evaluation: null,
           },
         },
-        { ...opened, answer: blank },
+        {
+          ...opened,
+          answer: {
+            submitted: "Mitosis overview.",
+            isCorrect: true,
+            score: 1,
+            feedback: "Correct.",
+            correctOptionId: null,
+            evaluation: null,
+          },
+        },
       ],
     });
+    mockComplete.mockResolvedValue({
+      assessmentId: "as-1",
+      quizAttemptId: "att-1",
+      quizId: "quiz-1",
+      totalQuestions: 2,
+      answeredCount: 2,
+      correctCount: 1,
+      partialCount: 0,
+      incorrectCount: 1,
+      score: 50,
+      conceptResults: [],
+    });
+    mockSummaries.mockResolvedValue([]);
     renderSection();
     await waitFor(() => expect(screen.getByText("Generate quiz")).toBeEnabled());
     fireEvent.click(screen.getByText("Generate quiz"));
     await waitFor(() => expect(screen.getByText("Start attempt")).toBeInTheDocument());
     fireEvent.click(screen.getByText("Start attempt"));
     await waitFor(() => expect(screen.getByText(/Answered 0 of 2/)).toBeInTheDocument());
+    // No per-question submit buttons: one final action only.
+    expect(screen.queryByRole("button", { name: "Submit answer" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("It does not cover this."));
-    const submits = screen.getAllByRole("button", { name: "Submit answer" });
-    fireEvent.click(submits[0] as HTMLElement);
-    await waitFor(() => expect(screen.getByText("Not quite.")).toBeInTheDocument());
-    expect(screen.getByText(/Correct answer:/)).toBeInTheDocument();
-    expect(screen.getByText(/Answered 1 of 2/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Answer for question 2"), {
+      target: { value: "Mitosis overview." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Quiz" }));
+    // Both drafts persist through the existing per-question endpoint, then
+    // the attempt completes exactly once.
+    await waitFor(() => expect(mockAnswer).toHaveBeenCalledTimes(2));
+    expect(mockAnswer).toHaveBeenNthCalledWith(1, "proj-1", "att-1", "q-mcq", "B");
+    expect(mockAnswer).toHaveBeenNthCalledWith(2, "proj-1", "att-1", "q-open", "Mitosis overview.");
+    expect(mockComplete).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByText("Assessment result")).toBeInTheDocument());
+    expect(screen.getByText("50%", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 correct")).toBeInTheDocument();
   });
 
   it("completes an attempt and shows concept performance", async () => {
@@ -392,13 +447,14 @@ describe("QuizSection", () => {
       ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByText("It converts sunlight."));
-    const submits = screen.getAllByRole("button", { name: "Submit answer" });
-    fireEvent.click(submits[0] as HTMLElement);
-    await waitFor(() => expect(screen.getByText("Correct.")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Finish and see results" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Quiz" }));
     await waitFor(() => expect(screen.getByText("100%")).toBeInTheDocument());
     expect(screen.getByText("Photosynthesis")).toBeInTheDocument();
     expect(document.body.textContent).toContain("1c/0p/0i of 1");
+    // Concise per-question line plus an expandable review.
+    expect(screen.getByText(/Q1 — Correct\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Review answers" }));
+    await waitFor(() => expect(screen.getByText(/you chose A/)).toBeInTheDocument());
   });
 
   it("opens a past result from history", async () => {

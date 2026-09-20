@@ -164,3 +164,27 @@ class AdminEvaluationRunRead(BaseModel):
     passed: int
     failed: int
     created_at: datetime
+
+
+class AdminRagResultRead(BaseModel):
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    material_id: uuid.UUID
+    material_name: str
+    page_start: int | None = None
+    page_end: int | None = None
+    similarity: float
+    text_preview: str
+
+
+class AdminRagDiagnoseRead(BaseModel):
+    query: str
+    project_id: uuid.UUID
+    embedding_model: str
+    embedding_dimension: int
+    top_k: int
+    threshold: float
+    retrieval_count: int
+    best_similarity: float | None = None
+    insufficient_evidence: bool
+    results: list[AdminRagResultRead]

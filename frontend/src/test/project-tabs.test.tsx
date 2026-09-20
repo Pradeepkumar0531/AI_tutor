@@ -354,6 +354,87 @@ describe("project tab navigation", () => {
     renderAt("/projects/project-a/overview");
     await waitFor(() => expect(screen.getByText("Project not found")).toBeInTheDocument());
   });
+
+  it("shows the breadcrumb without a redundant back link, progress bar, or updated date", async () => {
+    renderAt("/projects/project-a/overview");
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Algebra" })).toBeInTheDocument(),
+    );
+    // Breadcrumb remains the primary hierarchy navigation.
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mathematics" })).toHaveAttribute(
+      "href",
+      "/spaces/space-a",
+    );
+    // Redundant rows removed: back link, duplicated readiness progress, metadata date.
+    expect(screen.queryByRole("link", { name: /back to/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/materials ready \(/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/updated/i)).not.toBeInTheDocument();
+    // The summary cards themselves stay: ready, mastery, processing.
+    expect(screen.getByText("Materials ready")).toBeInTheDocument();
+    expect(screen.getByText("Average mastery")).toBeInTheDocument();
+    expect(screen.getByText("Processing")).toBeInTheDocument();
+  });
+
+  it("gives header and summary cards the restrained dark-gradient treatment", async () => {
+    const { container } = renderAt("/projects/project-a/overview");
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Algebra" })).toBeInTheDocument(),
+    );
+    // card-dark (deep navy → muted blue) marks exactly the project header
+    // card plus the three stat cards — not every card on the page.
+    expect(container.querySelectorAll(".card-dark").length).toBe(4);
+  });
+
+  it("does not force scroll-to-top when switching tabs", async () => {
+    // jsdom provides no scrollingElement: stub one so the legacy
+    // `document.scrollingElement.scrollTop = 0` reset (had it still existed)
+    // would trip this test, while the fixed page never touches it.
+    let forcedTo: number | null = null;
+    const stub = {};
+    Object.defineProperty(stub, "scrollTop", {
+      configurable: true,
+      get: () => 500,
+      set: (v: number) => {
+        forcedTo = v;
+      },
+    });
+    Object.defineProperty(document, "scrollingElement", { configurable: true, value: stub });
+    const scrollTo = vi.fn();
+    const prevScrollTo = window.scrollTo;
+    window.scrollTo = scrollTo as typeof window.scrollTo;
+    try {
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/projects/:projectId",
+            element: <ProjectDetailPage />,
+            children: [
+              { index: true, element: <Navigate to="overview" replace /> },
+              { path: "overview", element: <ProjectOverviewTab /> },
+              { path: "quiz", element: <ProjectQuizTab /> },
+              { path: "tutor", element: <ProjectTutorTab /> },
+            ],
+          },
+        ],
+        { initialEntries: ["/projects/project-a/overview"] },
+      );
+      render(<RouterProvider router={router} />);
+      await waitFor(() => expect(screen.getByText("No recommendations yet.")).toBeInTheDocument());
+      fireEvent.click(screen.getByRole("link", { name: "Quiz" }));
+      await waitFor(() => expect(screen.getByText("No quizzes yet.")).toBeInTheDocument());
+      fireEvent.click(screen.getByRole("link", { name: "Tutor" }));
+      await waitFor(() =>
+        expect(screen.getByText("Ask about your materials.")).toBeInTheDocument(),
+      );
+      // Neither the legacy scrollTop reset nor window.scrollTo may run.
+      expect(forcedTo).toBeNull();
+      expect(scrollTo).not.toHaveBeenCalled();
+    } finally {
+      delete (document as unknown as Record<string, unknown>)["scrollingElement"];
+      window.scrollTo = prevScrollTo;
+    }
+  });
 });
 
 describe("project tab history", () => {

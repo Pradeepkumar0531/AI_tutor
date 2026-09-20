@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { KnowledgeSection } from "@/features/knowledge/components/KnowledgeSection";
@@ -91,6 +91,44 @@ describe("KnowledgeSection", () => {
     await waitFor(() => expect(screen.getByText("Mitosis")).toBeInTheDocument());
     expect(screen.getByText("READY")).toBeInTheDocument();
     expect(screen.getByText(/4\/4 chunks embedded/)).toBeInTheDocument();
+  });
+
+  it("keeps polling a PENDING status until knowledge settles", async () => {
+    // No waitFor under fake timers (it would deadlock the test timeout and
+    // leak fake timers into sibling tests): flush with act + assert directly.
+    vi.useFakeTimers();
+    try {
+      mockStatus.mockResolvedValue({
+        ...readyStatus,
+        status: "PENDING",
+        totals: { chunks_total: 0, chunks_embedded: 0, concepts: 0, materials_ready: 0 },
+      });
+      mockConcepts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
+      renderSection();
+      await act(async () => {});
+      expect(screen.getByText("PENDING")).toBeInTheDocument();
+      const callsWhilePending = mockStatus.mock.calls.length;
+      // A freshly READY material briefly reports PENDING before its
+      // knowledge job is claimed: the section must keep polling instead of
+      // sitting on PENDING forever.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockStatus.mock.calls.length).toBeGreaterThan(callsWhilePending);
+      mockStatus.mockResolvedValue(readyStatus);
+      mockConcepts.mockResolvedValue(conceptList);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8000);
+      });
+      expect(screen.getByText("Mitosis")).toBeInTheDocument();
+      const callsAfterReady = mockStatus.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      expect(mockStatus.mock.calls.length).toBe(callsAfterReady);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows an honest empty state with no concepts", async () => {

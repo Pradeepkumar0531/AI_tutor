@@ -19,6 +19,13 @@ export const E2E_WORKER_PID = "/tmp/alc-e2e-worker.pid";
 export const E2E_WORKER_LOG = "/tmp/alc-e2e-worker.log";
 
 export const E2E_BACKEND_ENV: Record<string, string> = {
+  // A developer's local backend/.env is loaded by Settings and may restrict
+  // CORS_ORIGINS to a single host (e.g. localhost-only). The Playwright
+  // browser runs at http://127.0.0.1:5173 and calls the API directly, so its
+  // preflight would be denied and every E2E auth call would fail with a CORS
+  // error that curl can never reproduce. Pin both dev origins here: env vars
+  // take precedence over the dotenv file, production is untouched.
+  CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173",
   DATABASE_URL: process.env.DATABASE_URL ?? E2E_DATABASE_URL,
   CELERY_BROKER_URL: "filesystem://",
   CELERY_FILESYSTEM_ROOT: E2E_BROKER_ROOT,

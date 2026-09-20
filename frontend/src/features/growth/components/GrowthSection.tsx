@@ -96,7 +96,7 @@ export function GrowthSection({ projectId }: { projectId: string }) {
   return (
     <section aria-labelledby="growth-heading" ref={sectionRef}>
       <SectionLabel id="growth-heading">Concept Intelligence</SectionLabel>
-      <Card className="mt-2">
+      <Card variant="light" className="mt-2">
         <CardHeader className="pb-3">
           <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px]">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-primary">

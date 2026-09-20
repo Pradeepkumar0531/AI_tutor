@@ -16,6 +16,9 @@ interface SpacesState {
   status: LoadStatus;
   error: string | null;
   current: Space | null;
+  /** Route identity owning `current`: responses for any other id are dropped,
+   * and `reset()` (which nulls it) invalidates in-flight fetches. */
+  currentId: string | null;
   fetch: (params?: { page?: number; search?: string; includeArchived?: boolean }) => Promise<void>;
   fetchOne: (id: string) => Promise<Space | null>;
   create: (input: { name: string; description?: string }) => Promise<Space>;
@@ -35,6 +38,7 @@ const initial = {
   status: "idle" as LoadStatus,
   error: null as string | null,
   current: null as Space | null,
+  currentId: null as string | null,
 };
 
 export const useSpacesStore = create<SpacesState>((set, get) => {
@@ -73,10 +77,15 @@ export const useSpacesStore = create<SpacesState>((set, get) => {
     },
 
     fetchOne: async (id) => {
-      set({ status: "loading", error: null });
+      // Switching entities: drop the previous space synchronously so it can
+      // never render under the new route while loading (same contract as the
+      // project-scoped feature stores). `currentId` marks the wanted entity;
+      // a late response for any other id — or after reset() — is discarded.
+      if (get().current?.id !== id) set({ current: null });
+      set({ currentId: id, status: "loading", error: null });
       try {
         const space = await spacesApi.get(id);
-        set((s) => ({
+        if (get().currentId !== id) return null;        set((s) => ({
           current: space,
           items: s.items.some((i) => i.id === id)
             ? s.items.map((i) => (i.id === id ? space : i))
@@ -86,6 +95,7 @@ export const useSpacesStore = create<SpacesState>((set, get) => {
         return space;
       } catch (e) {
         const err = toApiError(e);
+        if (get().currentId !== id) return null;
         set({ status: "error", error: err.message, current: null });
         return null;
       }

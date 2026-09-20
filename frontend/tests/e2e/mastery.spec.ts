@@ -72,9 +72,8 @@ async function answerAllCorrect(page: Page) {
   for (let i = 0; i < count; i++) {
     await page.getByRole("radiogroup").nth(i).getByRole("radio").first().check();
   }
-  for (let i = 0; i < count; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
+  await expect(page.getByRole("button", { name: "Submit answer" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
 }
 
 test("mastery updates, detail, history, and persistence", async ({ page }) => {
@@ -92,9 +91,7 @@ test("mastery updates, detail, history, and persistence", async ({ page }) => {
   const firstConcept = labels[0]?.replace("Concepts: ", "").split(",")[0]?.trim() ?? "";
   expect(firstConcept).not.toBe("");
   await answerAllCorrect(page);
-  await expect(page.getByText(/Answered 2 of 2/)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 60_000 });
 
   // Completion drove synchronous mastery updates for the assessed concepts.
   await page.getByRole("button", { name: "Back to quizzes" }).click();
@@ -129,11 +126,8 @@ test("mastery updates, detail, history, and persistence", async ({ page }) => {
   for (let i = 0; i < wrongCount; i++) {
     await page.getByRole("radiogroup").nth(i).getByRole("radio").nth(1).check();
   }
-  for (let i = 0; i < wrongCount; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
+  await expect(page.getByText("Assessment result")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("0%", { exact: true }).first()).toBeVisible();
 
   // Reload: mastery persists server-side.
@@ -165,12 +159,8 @@ test("assessment performance flows into next quiz selection", async ({ page }) =
   expect(await page.getByRole("radiogroup").count()).toBe(2);
   await page.getByRole("radiogroup").nth(0).getByRole("radio").nth(1).check();
   await page.getByRole("radiogroup").nth(1).getByRole("radio").first().check();
-  for (let i = 0; i < 2; i++) {
-    await page.getByRole("button", { name: "Submit answer" }).first().click();
-  }
-  await expect(page.getByText(/Answered 2 of 2/)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Finish and see results" }).click();
-  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Submit Quiz" }).click();
+  await expect(page.getByText("50%", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
 
   // Persisted mastery for the missed concept sits below 50% (0.375 -> 38%).
   await page.getByRole("button", { name: "Back to quizzes" }).click();

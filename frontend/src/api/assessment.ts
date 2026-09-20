@@ -192,17 +192,29 @@ export const assessmentApi = {
     projectId: string,
     input: CreateQuizInput,
   ): Promise<{ quiz: Quiz; questions: QuizQuestion[] }> {
+    // Grounded generation fans out to one retrieval + model call per
+    // (concept, type) group — measured ~16s live for 5 questions — so this
+    // one route gets its own bounded timeout instead of the shared 15s
+    // client default. Aborts would otherwise fake a failure AFTER the server
+    // already persisted the quiz, and retries would duplicate it.
+    // `client_request_key` is snake_case: the backend schema silently drops
+    // unknown fields, so the camelCase spelling previously disabled
+    // idempotent replays entirely.
     const res = await apiClient.post<{
       quiz: BackendQuiz;
       questions: BackendQuestion[];
-    }>(`/api/v1/projects/${projectId}/quizzes`, {
-      question_count: input.questionCount,
-      difficulty: input.difficulty ?? null,
-      focus_concepts: input.focusConceptIds ?? [],
-      question_types: input.questionTypes,
-      title: input.title ?? null,
-      clientRequestKey: input.clientRequestKey,
-    });
+    }>(
+      `/api/v1/projects/${projectId}/quizzes`,
+      {
+        question_count: input.questionCount,
+        difficulty: input.difficulty ?? null,
+        focus_concepts: input.focusConceptIds ?? [],
+        question_types: input.questionTypes,
+        title: input.title ?? null,
+        client_request_key: input.clientRequestKey,
+      },
+      { timeout: 120000 },
+    );
     return { quiz: toQuiz(res.data.quiz), questions: res.data.questions.map(toQuizQuestion) };
   },
 
@@ -251,16 +263,25 @@ export const assessmentApi = {
     correctOptionId: string | null;
     evaluation: Record<string, unknown> | null;
   }> {
+    // Answering fans out to an AI evaluator for open-ended responses — the
+    // same measured-slow model path as quiz generation — so this route gets
+    // the same bounded timeout instead of the shared 15s client default.
+    // Aborting early would fake a failure AFTER the server already persisted
+    // the evaluation, leaving the attempt looking stuck in "request timeout".
     const res = await apiClient.post<{
       is_correct: boolean | null;
       score: number | null;
       feedback: string;
       correct_option_id: string | null;
       evaluation: Record<string, unknown> | null;
-    }>(`/api/v1/projects/${projectId}/attempts/${attemptId}/answers`, {
-      question_id: questionId,
-      answer,
-    });
+    }>(
+      `/api/v1/projects/${projectId}/attempts/${attemptId}/answers`,
+      {
+        question_id: questionId,
+        answer,
+      },
+      { timeout: 120000 },
+    );
     return {
       isCorrect: res.data.is_correct,
       score: res.data.score,
@@ -271,8 +292,13 @@ export const assessmentApi = {
   },
 
   async complete(projectId: string, attemptId: string): Promise<AssessmentResult> {
+    // Completion evaluates any pending open-ended answers server-side
+    // (model calls) before finalizing — same bounded timeout as answering so
+    // a slow evaluation surfaces honest progress instead of a fake timeout.
     const res = await apiClient.post<BackendResult>(
       `/api/v1/projects/${projectId}/attempts/${attemptId}/complete`,
+      undefined,
+      { timeout: 120000 },
     );
     return toResult(res.data);
   },

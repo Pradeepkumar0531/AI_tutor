@@ -42,7 +42,7 @@ export function MaterialCard({ material }: { material: Material }) {
 
   return (
     <>
-      <Card accent className={`card-lift h-full ${failed ? "border-destructive/30" : ""}`}>
+      <Card variant="light" accent className={`card-lift h-full ${failed ? "border-destructive/30" : ""}`}>
         <div className={`h-1 w-full rounded-t-[10px] ${bar}`} aria-hidden="true" />
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">

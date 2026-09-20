@@ -24,6 +24,10 @@ export interface CreateQuizForm {
 }
 
 interface AssessmentState {
+  /** Project owning every slice below (same contract as the tutor store:
+   * switching projects clears stale slices synchronously; late responses
+   * from a previous project are dropped). */
+  projectId: string | null;
   quizzes: Quiz[];
   quizzesState: LoadStatus;
   summaries: AssessmentSummary[];
@@ -48,10 +52,14 @@ interface AssessmentState {
   practiceConcept: (projectId: string, conceptId: string) => Promise<void>;
   openAssessment: (projectId: string, assessmentId: string) => Promise<void>;
   backToList: () => void;
+  /** Dismiss a surfaced operation error (generation failures stay visible
+   * until acknowledged; the next operation replaces them). */
+  clearError: () => void;
   reset: () => void;
 }
 
 const initial = {
+  projectId: null as string | null,
   quizzes: [] as Quiz[],
   quizzesState: "idle" as LoadStatus,
   summaries: [] as AssessmentSummary[],
@@ -73,14 +81,17 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
   ...initial,
 
   fetchQuizzes: async (projectId) => {
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     set({ quizzesState: "loading", summariesState: "loading", error: null });
     try {
       const [quizzes, summaries] = await Promise.all([
         assessmentApi.quizzes(projectId),
         assessmentApi.assessments(projectId),
       ]);
+      if (get().projectId !== projectId) return;
       set({ quizzes, quizzesState: "ready", summaries, summariesState: "ready" });
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({
         quizzesState: "error",
         summariesState: "error",
@@ -90,6 +101,7 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
   },
 
   createQuiz: async (projectId, form) => {
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     const types: ("MCQ" | "OPEN_ENDED")[] = [];
     if (form.mcq) types.push("MCQ");
     if (form.openEnded) types.push("OPEN_ENDED");
@@ -105,6 +117,7 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
         questionTypes: types,
         clientRequestKey: newRequestKey(),
       });
+      if (get().projectId !== projectId) return;
       set((s) => ({
         quizzes: [created.quiz, ...s.quizzes],
         activeQuiz: created,
@@ -113,31 +126,39 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
         busyState: "idle",
       }));
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({ busyState: "error", error: toApiError(e).message });
     }
   },
 
   selectQuiz: async (projectId, quizId) => {
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     set({ detailState: "loading", error: null, result: null, activeAttempt: null });
     try {
       const detail = await assessmentApi.quiz(projectId, quizId);
+      if (get().projectId !== projectId) return;
       set({ activeQuiz: detail, detailState: "ready" });
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({ detailState: "error", error: toApiError(e).message });
     }
   },
 
   startAttempt: async (projectId, quizId) => {
+    if (get().projectId !== projectId) return;
     set({ busyState: "working", error: null, result: null });
     try {
       const detail = await assessmentApi.startAttempt(projectId, quizId);
+      if (get().projectId !== projectId) return;
       set({ activeAttempt: detail, busyState: "idle" });
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({ busyState: "error", error: toApiError(e).message });
     }
   },
 
   answerQuestion: async (projectId, attemptId, questionId, answer) => {
+    if (get().projectId !== projectId) return;
     const current = get().activeAttempt;
     if (!current || get().busyState === "working") return;
     set({ busyState: "working", error: null });
@@ -146,21 +167,23 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
       // Server is the source of truth: re-read the attempt so submitted
       // answers, feedback, and correct-option reveals apply exactly once.
       const refreshed = await assessmentApi.attempt(projectId, attemptId);
-      if (get().activeAttempt?.attempt.id === attemptId) {
+      if (get().projectId === projectId && get().activeAttempt?.attempt.id === attemptId) {
         set({ activeAttempt: refreshed, busyState: "idle" });
       }
     } catch (e) {
-      if (get().activeAttempt?.attempt.id === attemptId) {
+      if (get().projectId === projectId && get().activeAttempt?.attempt.id === attemptId) {
         set({ busyState: "error", error: toApiError(e).message });
       }
     }
   },
 
   completeAttempt: async (projectId, attemptId) => {
+    if (get().projectId !== projectId) return;
     set({ busyState: "working", error: null });
     try {
       const result = await assessmentApi.complete(projectId, attemptId);
       const summaries = await assessmentApi.assessments(projectId);
+      if (get().projectId !== projectId) return;
       set({ result, summaries, busyState: "idle", activeAttempt: null });
       // Completion drives synchronous mastery/growth/recommendation updates
       // server-side: refresh the sibling slices so estimates appear without
@@ -187,11 +210,14 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
   },
 
   openAssessment: async (projectId, assessmentId) => {
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     set({ busyState: "working", error: null });
     try {
       const result = await assessmentApi.assessment(projectId, assessmentId);
+      if (get().projectId !== projectId) return;
       set({ result, activeAttempt: null, activeQuiz: null, busyState: "idle" });
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({ busyState: "error", error: toApiError(e).message });
     }
   },
@@ -200,6 +226,7 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
     // Recommendation-driven practice: a focused quiz via the existing
     // adaptive engine (bank reuse, grounded generation, idempotency),
     // then straight into the attempt.
+    if (get().projectId !== projectId) set({ ...initial, projectId });
     set({ busyState: "working", error: null, result: null });
     try {
       const created = await assessmentApi.createQuiz(projectId, {
@@ -209,20 +236,29 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
         clientRequestKey: newRequestKey(),
         focusConceptIds: [conceptId],
       });
+      if (get().projectId !== projectId) return;
       set((s) => ({
         quizzes: [created.quiz, ...s.quizzes],
         activeQuiz: created,
         busyState: "idle",
       }));
       const detail = await assessmentApi.startAttempt(projectId, created.quiz.id);
+      if (get().projectId !== projectId) return;
       set({ activeAttempt: detail, busyState: "idle" });
     } catch (e) {
+      if (get().projectId !== projectId) return;
       set({ busyState: "error", error: toApiError(e).message });
     }
   },
 
   backToList: () =>
     set({ activeQuiz: null, activeAttempt: null, result: null, detailState: "idle" }),
+
+  clearError: () =>
+    set((s) => ({
+      error: null,
+      busyState: s.busyState === "error" ? ("idle" as const) : s.busyState,
+    })),
 
   reset: () => set(initial),
 }));

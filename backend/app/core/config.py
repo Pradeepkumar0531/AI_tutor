@@ -194,6 +194,17 @@ class Settings(BaseSettings):
                 f"with the VECTOR({EMBEDDING_DIMENSIONS}) schema; refusing to start "
                 "with a configuration that would corrupt vectors."
             )
+        # Single source of truth: document and query embeddings share one
+        # width. google_embedding_dimensions drives the provider's
+        # output_dimensionality request while embedding_dimensions drives
+        # validation/persistence — a mismatch would embed documents and
+        # queries at different widths (silent retrieval failure).
+        if self.google_embedding_dimensions != self.embedding_dimensions:
+            raise ValueError(
+                f"google_embedding_dimensions={self.google_embedding_dimensions} must equal "
+                f"embedding_dimensions={self.embedding_dimensions}; refusing to start "
+                "with a configuration that would split document/query widths."
+            )
         return self
 
     @property

@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SectionLabel, SectionLoading, SkeletonTutorMessage } from "@/components/ui";
+import { KnowledgeReadinessBanner } from "@/features/knowledge/components/KnowledgeReadinessBanner";
 import { useTutorStore } from "@/stores/useTutorStore";
 import type { TutorMessage } from "@/types";
 
@@ -102,6 +103,9 @@ export function TutorSection({ projectId }: { projectId: string }) {
   const threadRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
+    // Local composer draft belongs to the previous project: clear it so a
+    // question drafted for A can never be sent from B.
+    setDraft("");
     void fetchConversations(projectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
@@ -142,7 +146,7 @@ export function TutorSection({ projectId }: { projectId: string }) {
   return (
     <section aria-labelledby="tutor-heading">
       <SectionLabel id="tutor-heading">Tutor</SectionLabel>
-      <Card className="mt-2">
+      <Card variant="light" className="mt-2">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px]">
@@ -169,6 +173,7 @@ export function TutorSection({ projectId }: { projectId: string }) {
             Grounded in this project&apos;s materials. Answers cite the exact source — when evidence
             is missing, the tutor says so instead of guessing.
           </p>
+          <KnowledgeReadinessBanner projectId={projectId} />
         </CardHeader>
         <CardContent className="space-y-4">
           {conversationsState === "loading" && conversations.length === 0 ? (

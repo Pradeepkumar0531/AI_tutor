@@ -355,11 +355,17 @@ class AssessmentService(BaseService):
                 "build grounded questions. Try uploading material that covers "
                 "these topics."
             )
+        resolved_title = title.strip() if title and title.strip() else None
         return self._persist_quiz(
             user_id=user_id,
             project=project,
             prepared=prepared,
-            title=(title.strip() if title and title.strip() else "Untitled quiz"),
+            title=(
+                resolved_title
+                or self._default_quiz_title(
+                    project=project, concepts=concepts, prepared=prepared
+                )
+            ),
             difficulty=difficulty,
             client_request_key=key,
             concept_ids={c.id for c in concepts},
@@ -943,6 +949,31 @@ class AssessmentService(BaseService):
         )
 
     # ------------------------------------------------------------ persistence
+
+    @staticmethod
+    def _default_quiz_title(
+        *, project: Project, concepts: list[Concept], prepared: list[PreparedQuestion]
+    ) -> str:
+        """Deterministic human title from real quiz data: the concepts
+        actually assessed (in question order), falling back to the project
+        name. Every quiz persisted here covers >=1 concept (empty sets raise
+        QuizInsufficientEvidence first), so titles are always meaningful and
+        never a generic placeholder."""
+        names_by_id = {c.id: (c.name or "").strip() for c in concepts}
+        ordered: list[str] = []
+        for record in prepared:
+            for concept_id in record.concept_ids:
+                name = names_by_id.get(concept_id, "")
+                if name and name not in ordered:
+                    ordered.append(name)
+        if len(ordered) == 1:
+            return f"{ordered[0]} — Practice Quiz"
+        if len(ordered) == 2:
+            return f"{ordered[0]}, {ordered[1]} — Practice Quiz"
+        if ordered:
+            return f"{ordered[0]}, {ordered[1]} +{len(ordered) - 2} more — Practice Quiz"
+        label = (project.name or "").strip() or "Project"
+        return f"{label} — Practice Quiz"
 
     @transactional
     def _persist_quiz(

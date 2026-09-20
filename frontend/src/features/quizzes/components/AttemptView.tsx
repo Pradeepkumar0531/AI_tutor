@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, CheckCircle2, Flag, Tag, XCircle } from "lucide-react";
+import { CheckCircle2, Flag, Tag, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,37 +15,29 @@ import { cn } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types";
 
 function QuestionCard({
-  projectId,
-  attemptId,
   question,
-  busy,
+  total,
+  draft,
+  onDraft,
+  disabled,
 }: {
-  projectId: string;
-  attemptId: string;
   question: AttemptQuestion;
-  busy: boolean;
+  total: number;
+  draft: string;
+  onDraft: (value: string) => void;
+  disabled: boolean;
 }) {
-  const answerQuestion = useAssessmentStore((s) => s.answerQuestion);
-  const [selected, setSelected] = React.useState("");
-  const [text, setText] = React.useState("");
   const answered = question.answer.submitted != null;
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy || answered) return;
-    const value = question.type === "MCQ" ? selected : text.trim();
-    if (!value) return;
-    void answerQuestion(projectId, attemptId, question.questionId, value);
-    setSelected("");
-    setText("");
-  };
-
   return (
-    <div className="rounded-[10px] border bg-card p-4">
+    <div className="card-hero rounded-[10px] border bg-card p-4 sm:p-5">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[15px] font-medium leading-relaxed">
-          Q{question.position + 1}. {question.prompt}
-        </p>
+        <div className="min-w-0">
+          <p className="eyebrow">
+            Question {question.position + 1} of {total}
+          </p>
+          <p className="mt-1 text-[15px] font-medium leading-relaxed">{question.prompt}</p>
+        </div>
         {question.answer.isCorrect == null ? null : question.answer.isCorrect ? (
           <Badge tone="success">
             <span className="inline-flex items-center gap-1">
@@ -70,7 +62,7 @@ function QuestionCard({
       ) : null}
 
       {!answered ? (
-        <form onSubmit={submit} className="mt-2 space-y-2">
+        <div className="mt-3 space-y-2">
           {question.type === "MCQ" ? (
             <div
               role="radiogroup"
@@ -82,7 +74,7 @@ function QuestionCard({
                   key={o.id}
                   className={cn(
                     "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors",
-                    selected === o.id
+                    draft === o.id
                       ? "border-primary bg-[hsl(var(--primary)/0.06)]"
                       : "hover:border-primary/40 hover:bg-secondary/50",
                   )}
@@ -91,9 +83,9 @@ function QuestionCard({
                     type="radio"
                     name={`q-${question.questionId}`}
                     value={o.id}
-                    checked={selected === o.id}
-                    onChange={() => setSelected(o.id)}
-                    disabled={busy}
+                    checked={draft === o.id}
+                    onChange={() => onDraft(o.id)}
+                    disabled={disabled}
                     className="mt-1 h-4 w-4 shrink-0 accent-primary"
                   />
                   <span>
@@ -104,24 +96,16 @@ function QuestionCard({
             </div>
           ) : (
             <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={draft}
+              onChange={(e) => onDraft(e.target.value)}
               aria-label={`Answer for question ${question.position + 1}`}
               rows={4}
               className="w-full rounded-md border px-2 py-1 text-sm"
               placeholder="Write your answer…"
-              disabled={busy}
+              disabled={disabled}
             />
           )}
-          <Button
-            type="submit"
-            size="sm"
-            disabled={busy || (question.type === "MCQ" ? !selected : !text.trim())}
-          >
-            <Check className="h-4 w-4" aria-hidden="true" />
-            {busy ? "Submitting…" : "Submit answer"}
-          </Button>
-        </form>
+        </div>
       ) : (
         <div className="mt-2 text-sm">
           {question.type === "MCQ" && question.answer.correctOptionId ? (
@@ -143,7 +127,16 @@ export function AttemptView({ projectId }: { projectId: string }) {
   const activeAttempt = useAssessmentStore((s) => s.activeAttempt);
   const busyState = useAssessmentStore((s) => s.busyState);
   const error = useAssessmentStore((s) => s.error);
+  const answerQuestion = useAssessmentStore((s) => s.answerQuestion);
   const completeAttempt = useAssessmentStore((s) => s.completeAttempt);
+  // Local drafts: the quiz is ONE assessment with ONE final submission. The
+  // backend still requires per-question answer rows, so the single Submit
+  // action below persists each drafted answer through the existing endpoint
+  // (in order, stopping on the first failure) and then completes — no
+  // duplicate submissions, no state lost on error.
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = React.useState(false);
+  const [submitProgress, setSubmitProgress] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
   // Completion is a long server operation (evaluate + persist + refresh
   // mastery/growth/recommendations). Track it locally so the UI can show an
@@ -160,7 +153,35 @@ export function AttemptView({ projectId }: { projectId: string }) {
     );
   const { attempt, questions } = activeAttempt;
   const answered = questions.filter((q) => q.answer.submitted != null).length;
-  const busy = busyState === "working";
+  const busy = busyState === "working" || submitting;
+
+  async function submitQuiz() {
+    if (submitting || busyState === "working" || attempt.status !== "IN_PROGRESS") return;
+    const targets = questions.filter(
+      (q) => q.answer.submitted == null && (drafts[q.questionId] ?? "").trim(),
+    );
+    setSubmitting(true);
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const q = targets[i] as AttemptQuestion;
+        setSubmitProgress(`Submitting ${i + 1} of ${targets.length}…`);
+        await answerQuestion(
+          projectId,
+          attempt.id,
+          q.questionId,
+          (drafts[q.questionId] ?? "").trim(),
+        );
+        const state = useAssessmentStore.getState();
+        if (state.projectId !== projectId) return;
+        if (state.busyState === "error") return;
+      }
+      setFinishing(true);
+      await completeAttempt(projectId, attempt.id);
+    } finally {
+      setSubmitting(false);
+      setSubmitProgress("");
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
@@ -172,26 +193,29 @@ export function AttemptView({ projectId }: { projectId: string }) {
       {questions.map((q) => (
         <QuestionCard
           key={q.questionId}
-          projectId={projectId}
-          attemptId={attempt.id}
           question={q}
-          busy={busy}
+          total={questions.length}
+          draft={drafts[q.questionId] ?? ""}
+          onDraft={(value) => setDrafts((d) => ({ ...d, [q.questionId]: value }))}
+          disabled={busy || attempt.status !== "IN_PROGRESS"}
         />
       ))}
       {busyState === "error" ? (
         <ErrorState title="Request failed" description={error ?? undefined} />
       ) : null}
-      <Button
-        type="button"
-        disabled={busy || attempt.status !== "IN_PROGRESS"}
-        onClick={() => {
-          setFinishing(true);
-          void completeAttempt(projectId, attempt.id);
-        }}
-      >
-        <Flag className="h-4 w-4" aria-hidden="true" />
-        {busy ? "Working…" : "Finish and see results"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          disabled={busy || attempt.status !== "IN_PROGRESS"}
+          onClick={() => void submitQuiz()}
+        >
+          <Flag className="h-4 w-4" aria-hidden="true" />
+          {submitting && submitProgress ? submitProgress : busy ? "Working…" : "Submit Quiz"}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Answer every question above, then submit once to see your results.
+        </p>
+      </div>
       {finishing && busy ? (
         <SectionLoading label="Analyzing your responses">
           <SkeletonProgress label="Analyzing your responses…" />

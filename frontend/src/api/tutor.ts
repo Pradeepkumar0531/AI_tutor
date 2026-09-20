@@ -91,9 +91,18 @@ export const tutorApi = {
     content: string,
     requestKey: string,
   ): Promise<TutorSendResult> {
+    // Grounded Tutor generation is one retrieval + one reasoning-model call,
+    // measured live at ~1.6–3.6s typical — but the backend tolerates up to
+    // 60s per provider call (groq_timeout_seconds) plus one bounded retry, so
+    // a legitimate tail request can outlive the shared 15s client default.
+    // Aborting first would fake a failure AFTER the server persisted both
+    // messages, and the retry (fresh request key) would duplicate the
+    // question. This route therefore carries the backend's own 60s bound
+    // instead of the global default. Nothing else changes.
     const res = await apiClient.post<BackendSendResponse>(
       `/api/v1/projects/${projectId}/conversations/${conversationId}/messages`,
       { content, request_key: requestKey },
+      { timeout: 60000 },
     );
     return {
       conversationId: res.data.conversation_id,

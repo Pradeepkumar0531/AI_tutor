@@ -21,7 +21,7 @@ export function SpaceCard({
       className="group block rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label={`Open space ${space.name}`}
     >
-      <Card accent className="card-lift h-full group-hover:border-primary/40">
+      <Card variant="light" accent className="card-lift h-full group-hover:border-primary/40">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2.5 text-[15px] line-clamp-1">
